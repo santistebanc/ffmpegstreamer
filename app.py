@@ -338,10 +338,10 @@ def start_live_stream():
             '-i', 'testsrc2=size=1280x720:rate=30',  # HD resolution
             '-vf', 
             'drawbox=x=100+100*cos(t*2*PI/5):y=100+100*sin(t*2*PI/5):w=200:h=200:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=20:y=50:fontsize=36:color=white:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'%{pts\\:hms}\':x=20:y=100:fontsize=48:color=yellow:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HLS Live Stream\':x=20:y=160:fontsize=28:color=cyan:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HD Quality\':x=20:y=200:fontsize=24:color=lime:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+            'drawtext=text=\'Server Uptime\':x=20:y=50:fontsize=36:color=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'%{pts\\:hms}\':x=20:y=100:fontsize=48:color=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'HLS Live Stream\':x=20:y=160:fontsize=28:color=cyan:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'HD Quality\':x=20:y=200:fontsize=24:color=lime:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             '-c:v', 'libx264',
             '-preset', 'medium',  # Better quality than ultrafast
             '-tune', 'zerolatency',
@@ -365,7 +365,18 @@ def start_live_stream():
             bufsize=0
         )
         
+        # Wait a moment and check if FFmpeg started successfully
+        time.sleep(3)
+        
+        if ffmpeg_process.poll() is not None:
+            # Process exited, get error
+            stdout, stderr = ffmpeg_process.communicate()
+            error_msg = f"FFmpeg exited with code {ffmpeg_process.returncode}\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}"
+            print(f"FFmpeg error: {error_msg}")
+            return False
+        
         stream_active = True
+        print(f"FFmpeg started successfully, PID: {ffmpeg_process.pid}")
         return True
         
     except Exception as e:
@@ -437,6 +448,7 @@ def restart_stream():
 @app.route('/playlist.m3u8')
 def serve_playlist():
     """Serve the HLS playlist"""
+    print(f"Playlist request - stream_active: {stream_active}, playlist exists: {os.path.exists(playlist_file) if stream_active else False}")
     if not stream_active or not os.path.exists(playlist_file):
         return jsonify({'error': 'No active stream available'}), 404
     

@@ -344,10 +344,10 @@ def start_live_stream():
             '-i', 'testsrc2=size=1920x1080:rate=30',  # Full HD resolution
             '-vf', 
             'drawbox=x=200+200*cos(t*2*PI/5):y=200+200*sin(t*2*PI/5):w=400:h=400:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=40:y=80:fontsize=48:color=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'%{pts\\:hms}\':x=40:y=140:fontsize=64:color=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HLS Live Stream\':x=40:y=220:fontsize=36:color=cyan:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'Optimized HD Quality\':x=40:y=280:fontsize=28:color=lime:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            'drawtext=text=\'Server Uptime\':x=40:y=80:fontsize=48:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'%{pts\\:hms}\':x=40:y=140:fontsize=64:fontcolor=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'HLS Live Stream\':x=40:y=220:fontsize=36:fontcolor=cyan:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'Optimized HD Quality\':x=40:y=280:fontsize=28:fontcolor=lime:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             '-c:v', 'libx264',
             '-preset', 'fast',  # Good balance of quality and speed
             '-tune', 'zerolatency',
@@ -373,7 +373,18 @@ def start_live_stream():
             bufsize=0
         )
         
+        # Wait a moment and check if FFmpeg started successfully
+        time.sleep(3)
+        
+        if ffmpeg_process.poll() is not None:
+            # Process exited, get error
+            stdout, stderr = ffmpeg_process.communicate()
+            error_msg = f"FFmpeg exited with code {ffmpeg_process.returncode}\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}"
+            print(f"FFmpeg error: {error_msg}")
+            return False
+        
         stream_active = True
+        print(f"FFmpeg started successfully, PID: {ffmpeg_process.pid}")
         return True
         
     except Exception as e:
@@ -432,7 +443,7 @@ def restart_stream():
         else:
             return jsonify({
                 'success': False,
-                'error': 'Failed to restart stream',
+                'error': 'Failed to restart stream - check server logs for FFmpeg errors',
                 'timestamp': datetime.now().isoformat()
             }), 500
     except Exception as e:
@@ -445,17 +456,14 @@ def restart_stream():
 @app.route('/playlist.m3u8')
 def serve_playlist():
     """Serve the HLS playlist"""
+    print(f"Playlist request - stream_active: {stream_active}, playlist exists: {os.path.exists(playlist_file) if stream_active else False}")
     if not stream_active or not os.path.exists(playlist_file):
         return jsonify({'error': 'No active stream available'}), 404
     
-    return send_file(
-        playlist_file,
-        mimetype='application/vnd.apple.mpegurl',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
-        }
-    )
+    response = send_file(playlist_file, mimetype='application/vnd.apple.mpegurl')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 @app.route('/<path:filename>')
 def serve_hls_segment(filename):
@@ -475,14 +483,10 @@ def serve_hls_segment(filename):
     else:
         mimetype = 'application/octet-stream'
     
-    return send_file(
-        file_path,
-        mimetype=mimetype,
-        headers={
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
-        }
-    )
+    response = send_file(file_path, mimetype=mimetype)
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 @app.route('/stream_info')
 def stream_info():

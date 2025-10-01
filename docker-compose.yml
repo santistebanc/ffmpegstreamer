@@ -4,7 +4,7 @@ services:
   ffmpeg-streamer:
     build:
       context: .
-      dockerfile: Dockerfile.minimal
+      dockerfile: Dockerfile.debug
     ports:
       - "5000:5000"
     environment:

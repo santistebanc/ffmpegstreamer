@@ -1,0 +1,61 @@
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV PYTHONUNBUFFERED 1
+ENV NODE_VERSION 18
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    ffmpeg \
+    fonts-dejavu-core \
+    fonts-liberation \
+    curl \
+    wget \
+    gnupg \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y nodejs
+
+# Create a symlink for python to python3
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json ./
+COPY pixi-server.js ./
+
+# Install Node.js dependencies
+RUN npm install
+
+# Copy Python requirements and install
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy Python application
+COPY app_optimized.py app.py
+
+# Create HLS directory
+RUN mkdir -p /app/hls
+
+# Create a non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Expose the port Flask runs on
+EXPOSE 5000
+
+# Command to run both PixiJS server and Flask app
+CMD ["sh", "-c", "node pixi-server.js & python3 app.py"]

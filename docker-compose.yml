@@ -4,7 +4,7 @@ services:
   ffmpeg-streamer:
     build:
       context: .
-      dockerfile: Dockerfile.ubuntu
+      dockerfile: Dockerfile.pixi
     ports:
       - "5000:5000"
     environment:

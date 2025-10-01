@@ -1,0 +1,13 @@
+{
+  "name": "canvas-streamer",
+  "version": "1.0.0",
+  "description": "Canvas server-side rendering for FFmpeg streaming",
+  "main": "pixi-server.js",
+  "scripts": {
+    "start": "node pixi-server.js"
+  },
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "express": "^4.18.2"
+  }
+}

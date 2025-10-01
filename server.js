@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
+const { Application, Graphics, Text, Sprite, Texture, Container, Ticker } = require('pixi.js');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,12 +47,12 @@ const HTML_TEMPLATE = `
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Live Timer Stream (HD Quality)</h1>
+        <h1>🎨 PixiJS Live Stream (HD Quality)</h1>
         <div class="info">
-            <p><strong>Live Stream:</strong> This server streams a live HD video showing a timer that counts up from when the server started.</p>
-            <p><strong>Features:</strong> Real-time timer display with a moving square background animation in HD quality.</p>
+            <p><strong>Live Stream:</strong> This server streams a live HD video showing a timer with PixiJS-powered animations.</p>
+            <p><strong>Features:</strong> Real-time timer display with animated graphics, particles, and rotating elements using PixiJS rendering engine.</p>
             <div class="hls-info">
-                <strong>HLS Streaming:</strong> Using HTTP Live Streaming (HLS) format with HD quality (1280x720) for better compatibility and adaptive bitrate streaming.
+                <strong>HLS Streaming:</strong> Using HTTP Live Streaming (HLS) format with HD quality (1280x720) and server-side PixiJS rendering for smooth animations.
             </div>
         </div>
         <div class="status" id="status">Connecting to live stream...</div>
@@ -320,40 +321,129 @@ let startTime = Date.now();
 
 // Pick a random color at startup
 const colors = [
-    'rgba(255, 0, 0, 0.8)',    // Red
-    'rgba(0, 255, 0, 0.8)',    // Green
-    'rgba(0, 0, 255, 0.8)',    // Blue
-    'rgba(255, 255, 0, 0.8)',  // Yellow
-    'rgba(255, 0, 255, 0.8)',  // Magenta
-    'rgba(0, 255, 255, 0.8)',  // Cyan
-    'rgba(255, 165, 0, 0.8)',  // Orange
-    'rgba(128, 0, 128, 0.8)',  // Purple
-    'rgba(255, 192, 203, 0.8)', // Pink
-    'rgba(0, 128, 0, 0.8)'     // Dark Green
+    0xFF0000,  // Red
+    0x00FF00,  // Green
+    0x0000FF,  // Blue
+    0xFFFF00,  // Yellow
+    0xFF00FF,  // Magenta
+    0x00FFFF,  // Cyan
+    0xFFA500,  // Orange
+    0x800080,  // Purple
+    0xFFC0CB,  // Pink
+    0x008000   // Dark Green
 ];
 const randomColor = colors[Math.floor(Math.random() * colors.length)];
-console.log('Canvas server started with random color:', randomColor);
+console.log('PixiJS server started with random color:', randomColor.toString(16));
+
+// PixiJS objects
+let pixiApp, container, square, titleText, timerText, subtitleText, qualityText, particles;
+
+// Create PixiJS application
+async function initPixi() {
+    pixiApp = new Application();
+    await pixiApp.init({
+        width: 1280,
+        height: 720,
+        background: 0x000000,
+        antialias: true,
+        resolution: 1,
+        canvas: canvas
+    });
+
+    // Create animated objects
+    container = new Container();
+    pixiApp.stage.addChild(container);
+
+    // Create animated square
+    square = new Graphics();
+    square.rect(-100, -100, 200, 200);
+    square.fill(randomColor);
+    square.alpha = 0.8;
+    container.addChild(square);
+
+    // Create text elements
+    titleText = new Text({
+        text: 'PixiJS Live Stream',
+        style: {
+            fontFamily: 'Arial',
+            fontSize: 36,
+            fill: 0xFFFFFF,
+            align: 'left'
+        }
+    });
+    titleText.x = 20;
+    titleText.y = 50;
+    container.addChild(titleText);
+
+    timerText = new Text({
+        text: '00:00:00',
+        style: {
+            fontFamily: 'Arial',
+            fontSize: 48,
+            fill: 0xFFFF00,
+            align: 'left'
+        }
+    });
+    timerText.x = 20;
+    timerText.y = 100;
+    container.addChild(timerText);
+
+    subtitleText = new Text({
+        text: 'Server-Side Rendering',
+        style: {
+            fontFamily: 'Arial',
+            fontSize: 28,
+            fill: 0x00FFFF,
+            align: 'left'
+        }
+    });
+    subtitleText.x = 20;
+    subtitleText.y = 160;
+    container.addChild(subtitleText);
+
+    qualityText = new Text({
+        text: 'HD Quality with PixiJS',
+        style: {
+            fontFamily: 'Arial',
+            fontSize: 24,
+            fill: 0x00FF00,
+            align: 'left'
+        }
+    });
+    qualityText.x = 20;
+    qualityText.y = 200;
+    container.addChild(qualityText);
+
+    // Add some additional animated elements
+    particles = [];
+    for (let i = 0; i < 20; i++) {
+        const particle = new Graphics();
+        particle.circle(0, 0, Math.random() * 5 + 2);
+        particle.fill(Math.random() * 0xFFFFFF);
+        particle.alpha = Math.random() * 0.5 + 0.3;
+        particle.x = Math.random() * 1280;
+        particle.y = Math.random() * 720;
+        container.addChild(particle);
+        particles.push({
+            graphics: particle,
+            vx: (Math.random() - 0.5) * 2,
+            vy: (Math.random() - 0.5) * 2
+        });
+    }
+}
 
 // Animation loop
 function animate() {
     time += 0.016; // ~60fps
     
-    // Clear canvas
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 1280, 720);
+    // Animate the square in circular motion
+    const centerX = 200 + 200 * Math.cos(time * 2 * Math.PI / 5);
+    const centerY = 200 + 200 * Math.sin(time * 2 * Math.PI / 5);
+    square.x = centerX;
+    square.y = centerY;
     
-    // Draw animated square with random color
-    const squareSize = 200;
-    const centerX = 100 + 100 * Math.cos(time * 2 * Math.PI / 5);
-    const centerY = 100 + 100 * Math.sin(time * 2 * Math.PI / 5);
-    
-    ctx.fillStyle = randomColor;
-    ctx.fillRect(centerX, centerY, squareSize, squareSize);
-    
-    // Draw text overlays
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '36px Arial';
-    ctx.fillText('Server Uptime', 20, 50);
+    // Rotate the square
+    square.rotation = time * 0.5;
     
     // Update timer text
     const elapsed = (Date.now() - startTime) / 1000;
@@ -361,19 +451,32 @@ function animate() {
     const minutes = Math.floor((elapsed % 3600) / 60);
     const seconds = Math.floor(elapsed % 60);
     
-    const timerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const timerString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    timerText.text = timerString;
     
-    ctx.fillStyle = '#FFFF00';
-    ctx.font = '48px Arial';
-    ctx.fillText(timerText, 20, 100);
+    // Animate particles
+    particles.forEach(particle => {
+        particle.graphics.x += particle.vx;
+        particle.graphics.y += particle.vy;
+        
+        // Bounce off edges
+        if (particle.graphics.x < 0 || particle.graphics.x > 1280) {
+            particle.vx *= -1;
+        }
+        if (particle.graphics.y < 0 || particle.graphics.y > 720) {
+            particle.vy *= -1;
+        }
+        
+        // Keep particles in bounds
+        particle.graphics.x = Math.max(0, Math.min(1280, particle.graphics.x));
+        particle.graphics.y = Math.max(0, Math.min(720, particle.graphics.y));
+        
+        // Add some rotation
+        particle.graphics.rotation += 0.02;
+    });
     
-    ctx.fillStyle = '#00FFFF';
-    ctx.font = '28px Arial';
-    ctx.fillText('HLS Live Stream', 20, 160);
-    
-    ctx.fillStyle = '#00FF00';
-    ctx.font = '24px Arial';
-    ctx.fillText('HD Quality', 20, 200);
+    // Render PixiJS to canvas
+    pixiApp.render();
     
     // Get canvas data and send to FFmpeg
     const imageData = canvas.toDataURL('image/png');
@@ -691,23 +794,36 @@ process.on('SIGTERM', () => {
 });
 
 // Start the server
-console.log("Live Timer Stream Server (HD Quality)");
+console.log("PixiJS Live Stream Server (HD Quality)");
 console.log("=" * 40);
 console.log(`Server started at: ${serverStartTime}`);
 console.log(`Starting server on http://0.0.0.0:${PORT}`);
-console.log("HD quality HLS streaming with persistent timer");
-console.log("Auto-starting live stream...");
+console.log("HD quality HLS streaming with PixiJS animations");
+console.log("Initializing PixiJS...");
 
-// Auto-start the stream when server boots up
-setTimeout(() => {
-    const success = startLiveStream();
-    if (success) {
-        console.log("✅ HD live stream started successfully");
-    } else {
-        console.log("❌ Failed to start HD live stream");
+// Initialize PixiJS and start the server
+async function startServer() {
+    try {
+        await initPixi();
+        console.log("✅ PixiJS initialized successfully");
+        
+        // Auto-start the stream when server boots up
+        setTimeout(() => {
+            const success = startLiveStream();
+            if (success) {
+                console.log("✅ PixiJS live stream started successfully");
+            } else {
+                console.log("❌ Failed to start PixiJS live stream");
+            }
+        }, 3000);
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error("❌ Failed to initialize PixiJS:", error);
+        process.exit(1);
     }
-}, 3000);
+}
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-});
+startServer();

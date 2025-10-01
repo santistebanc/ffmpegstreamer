@@ -19,7 +19,7 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Live Timer Stream (No Disk)</title>
+    <title>Live Timer Stream (Simple)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -38,12 +38,12 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Live Timer Stream (No Disk Mode)</h1>
+        <h1>⏱️ Live Timer Stream (Simple)</h1>
         <div class="info">
-            <p><strong>No Disk Mode:</strong> Streams directly without creating files on disk.</p>
-            <p><strong>Features:</strong> Real-time timer display with moving square animation.</p>
+            <p><strong>Simple Mode:</strong> Basic test pattern with timer overlay in browser.</p>
+            <p><strong>Features:</strong> Moving test pattern with JavaScript timer.</p>
             <div class="warning">
-                <strong>Note:</strong> This version streams directly to the browser without HLS files, using minimal disk space.
+                <strong>Note:</strong> This version uses the simplest possible FFmpeg command to ensure compatibility.
             </div>
         </div>
         <div class="controls">
@@ -135,31 +135,26 @@ HTML_TEMPLATE = """
 """
 
 def start_live_stream():
-    """Start the live stream with direct streaming (no disk files)"""
+    """Start the live stream with simplest possible FFmpeg command"""
     global ffmpeg_process, stream_active
     
     try:
         if ffmpeg_process and ffmpeg_process.poll() is None:
             return True, "Stream already running"
         
-        # Ultra-minimal FFmpeg command that streams directly to stdout
+        # Simplest possible FFmpeg command - just test pattern
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
             '-i', 'testsrc2=size=320x240:rate=15',
-            '-vf', 
-            'drawbox=x=25+25*cos(t*2*PI/5):y=25+25*sin(t*2*PI/5):w=50:h=50:color=red@0.8:t=fill,'
-            'drawtext=text=\'Uptime\':x=5:y=15:fontsize=12,'
-            'drawtext=text=\'%{pts\\:hms}\':x=5:y=30:fontsize=16,'
-            'drawtext=text=\'Live\':x=5:y=45:fontsize=10',
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-crf', '30',  # Higher CRF for smaller files
+            '-crf', '30',
             '-pix_fmt', 'yuv420p',
             '-f', 'mp4',
             '-movflags', 'frag_keyframe+empty_moov',
-            'pipe:1'  # Stream directly to stdout, no files
+            'pipe:1'
         ]
         
         print(f"Starting FFmpeg with command: {' '.join(ffmpeg_cmd)}")
@@ -320,11 +315,11 @@ signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
 
 if __name__ == '__main__':
-    print("Live Timer Stream Server (No Disk Mode)")
-    print("=" * 45)
+    print("Live Timer Stream Server (Simple)")
+    print("=" * 40)
     print(f"Server started at: {server_start_time}")
     print("Starting server on http://0.0.0.0:5000")
-    print("No disk mode - streams directly without creating files")
+    print("Simple mode - basic test pattern with browser timer")
     
     try:
         # Start the Flask server

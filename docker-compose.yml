@@ -4,11 +4,12 @@ services:
   ffmpeg-streamer:
     build:
       context: .
-      dockerfile: Dockerfile.pixi
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
     environment:
-      - FLASK_ENV=production
+      - NODE_ENV=production
+      - PORT=5000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]

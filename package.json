@@ -1,13 +1,26 @@
 {
-  "name": "canvas-streamer",
+  "name": "ffmpeg-streamer",
   "version": "1.0.0",
-  "description": "Canvas server-side rendering for FFmpeg streaming",
-  "main": "pixi-server.js",
+  "description": "JavaScript-based FFmpeg streaming server with HLS support",
+  "main": "server.js",
   "scripts": {
-    "start": "node pixi-server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "canvas": "^2.11.2",
     "express": "^4.18.2"
-  }
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "ffmpeg",
+    "hls",
+    "streaming",
+    "canvas",
+    "live-stream"
+  ],
+  "author": "",
+  "license": "MIT"
 }

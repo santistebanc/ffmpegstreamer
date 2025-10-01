@@ -1,25 +1,21 @@
-from flask import Flask, Response, jsonify, render_template_string, send_file
-import subprocess
-import os
-import threading
-import time
-from datetime import datetime
-import signal
-import sys
-import glob
-import shutil
+const express = require('express');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { createCanvas, loadImage } = require('canvas');
 
-app = Flask(__name__)
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-# Global variables for live streaming
-server_start_time = datetime.now()
-ffmpeg_process = None
-stream_active = False
-hls_output_dir = "/app/hls"
-playlist_file = os.path.join(hls_output_dir, "playlist.m3u8")
+// Global variables for live streaming
+const serverStartTime = new Date();
+let ffmpegProcess = null;
+let streamActive = false;
+const hlsOutputDir = "/app/hls";
+const playlistFile = path.join(hlsOutputDir, "playlist.m3u8");
 
-# HTML template for the web interface
-HTML_TEMPLATE = """
+// HTML template for the web interface
+const HTML_TEMPLATE = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -312,272 +308,399 @@ HTML_TEMPLATE = """
     </script>
 </body>
 </html>
-"""
+`;
 
-def start_live_stream():
-    """Start the live stream with FFmpeg generating HLS segments"""
-    global ffmpeg_process, stream_active
+// Create a canvas for rendering
+const canvas = createCanvas(1280, 720);
+const ctx = canvas.getContext('2d');
+
+// Animation variables
+let time = 0;
+let startTime = Date.now();
+
+// Pick a random color at startup
+const colors = [
+    'rgba(255, 0, 0, 0.8)',    // Red
+    'rgba(0, 255, 0, 0.8)',    // Green
+    'rgba(0, 0, 255, 0.8)',    // Blue
+    'rgba(255, 255, 0, 0.8)',  // Yellow
+    'rgba(255, 0, 255, 0.8)',  // Magenta
+    'rgba(0, 255, 255, 0.8)',  // Cyan
+    'rgba(255, 165, 0, 0.8)',  // Orange
+    'rgba(128, 0, 128, 0.8)',  // Purple
+    'rgba(255, 192, 203, 0.8)', // Pink
+    'rgba(0, 128, 0, 0.8)'     // Dark Green
+];
+const randomColor = colors[Math.floor(Math.random() * colors.length)];
+console.log('Canvas server started with random color:', randomColor);
+
+// Animation loop
+function animate() {
+    time += 0.016; // ~60fps
     
-    try:
-        if ffmpeg_process and ffmpeg_process.poll() is None:
-            return True  # Stream already running
+    // Clear canvas
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 1280, 720);
+    
+    // Draw animated square with random color
+    const squareSize = 200;
+    const centerX = 100 + 100 * Math.cos(time * 2 * Math.PI / 5);
+    const centerY = 100 + 100 * Math.sin(time * 2 * Math.PI / 5);
+    
+    ctx.fillStyle = randomColor;
+    ctx.fillRect(centerX, centerY, squareSize, squareSize);
+    
+    // Draw text overlays
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '36px Arial';
+    ctx.fillText('Server Uptime', 20, 50);
+    
+    // Update timer text
+    const elapsed = (Date.now() - startTime) / 1000;
+    const hours = Math.floor(elapsed / 3600);
+    const minutes = Math.floor((elapsed % 3600) / 60);
+    const seconds = Math.floor(elapsed % 60);
+    
+    const timerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    ctx.fillStyle = '#FFFF00';
+    ctx.font = '48px Arial';
+    ctx.fillText(timerText, 20, 100);
+    
+    ctx.fillStyle = '#00FFFF';
+    ctx.font = '28px Arial';
+    ctx.fillText('HLS Live Stream', 20, 160);
+    
+    ctx.fillStyle = '#00FF00';
+    ctx.font = '24px Arial';
+    ctx.fillText('HD Quality', 20, 200);
+    
+    // Get canvas data and send to FFmpeg
+    const imageData = canvas.toDataURL('image/png');
+    
+    // Convert base64 to buffer
+    const base64Data = imageData.replace(/^data:image\/png;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Send to FFmpeg if process exists
+    if (ffmpegProcess && !ffmpegProcess.killed) {
+        try {
+            ffmpegProcess.stdin.write(buffer);
+        } catch (error) {
+            if (error.code === 'EPIPE') {
+                console.log('FFmpeg process ended, stopping animation...');
+                if (animationFrameId) {
+                    clearInterval(animationFrameId);
+                    animationFrameId = null;
+                }
+                ffmpegProcess = null;
+            } else {
+                console.error('Error writing to FFmpeg:', error);
+            }
+        }
+    }
+}
+
+let animationFrameId = null;
+
+function startLiveStream() {
+    try {
+        if (ffmpegProcess && !ffmpegProcess.killed) {
+            return true; // Stream already running
+        }
         
-        # Create HLS output directory
-        os.makedirs(hls_output_dir, exist_ok=True)
+        // Create HLS output directory
+        if (!fs.existsSync(hlsOutputDir)) {
+            fs.mkdirSync(hlsOutputDir, { recursive: true });
+        }
         
-        # Clean up old segments
-        for file in glob.glob(os.path.join(hls_output_dir, "*.ts")):
-            os.remove(file)
-        if os.path.exists(playlist_file):
-            os.remove(playlist_file)
+        // Clean up old segments
+        const files = fs.readdirSync(hlsOutputDir);
+        files.forEach(file => {
+            if (file.endsWith('.ts') || file.endsWith('.m3u8')) {
+                fs.unlinkSync(path.join(hlsOutputDir, file));
+            }
+        });
         
-        # FFmpeg command for high-quality HLS live streaming with timer
-        ffmpeg_cmd = [
+        // FFmpeg command for high-quality HLS live streaming with timer
+        const ffmpegCmd = [
             'ffmpeg',
+            '-f', 'image2pipe',
+            '-vcodec', 'png',
+            '-r', '30',
+            '-i', 'pipe:0',
             '-f', 'lavfi',
-            '-i', 'testsrc2=size=1280x720:rate=30',  # HD resolution
-            '-vf', 
-            'drawbox=x=100+100*cos(t*2*PI/5):y=100+100*sin(t*2*PI/5):w=200:h=200:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=20:y=50:fontsize=36:color=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'%{pts\\:hms}\':x=20:y=100:fontsize=48:color=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HLS Live Stream\':x=20:y=160:fontsize=28:color=cyan:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HD Quality\':x=20:y=200:fontsize=24:color=lime:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '-i', 'anullsrc=channel_layout=stereo:sample_rate=22050',
             '-c:v', 'libx264',
-            '-preset', 'medium',  # Better quality than ultrafast
+            '-preset', 'medium',
             '-tune', 'zerolatency',
-            '-crf', '20',  # Better quality (lower CRF)
-            '-maxrate', '2M',  # Bitrate limit
-            '-bufsize', '4M',  # Buffer size
+            '-crf', '20',
+            '-maxrate', '2M',
+            '-bufsize', '4M',
             '-pix_fmt', 'yuv420p',
+            '-s', '1280x720',
+            '-c:a', 'aac',
+            '-b:a', '64k',
+            '-ar', '22050',
+            '-ac', '1',
             '-f', 'hls',
-            '-hls_time', '4',  # 4-second segments for better quality
-            '-hls_list_size', '10',  # Keep 10 segments in playlist
+            '-hls_time', '4',
+            '-hls_list_size', '10',
             '-hls_flags', 'delete_segments+independent_segments',
-            '-hls_segment_filename', os.path.join(hls_output_dir, 'segment_%03d.ts'),
-            playlist_file
-        ]
+            '-hls_segment_filename', path.join(hlsOutputDir, 'segment_%03d.ts'),
+            playlistFile
+        ];
         
-        # Start FFmpeg process
-        ffmpeg_process = subprocess.Popen(
-            ffmpeg_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=0
-        )
+        // Start FFmpeg process
+        ffmpegProcess = spawn('ffmpeg', ffmpegCmd, {
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
         
-        # Wait a moment and check if FFmpeg started successfully
-        time.sleep(3)
+        ffmpegProcess.stderr.on('data', (data) => {
+            console.log('FFmpeg stderr:', data.toString());
+        });
         
-        if ffmpeg_process.poll() is not None:
-            # Process exited, get error
-            stdout, stderr = ffmpeg_process.communicate()
-            error_msg = f"FFmpeg exited with code {ffmpeg_process.returncode}\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}"
-            print(f"FFmpeg error: {error_msg}")
-            return False
+        ffmpegProcess.on('close', (code) => {
+            console.log(`FFmpeg process exited with code ${code}`);
+            ffmpegProcess = null;
+            streamActive = false;
+            if (animationFrameId) {
+                clearInterval(animationFrameId);
+                animationFrameId = null;
+            }
+        });
         
-        stream_active = True
-        print(f"FFmpeg started successfully, PID: {ffmpeg_process.pid}")
-        return True
+        ffmpegProcess.on('error', (err) => {
+            console.error('FFmpeg process error:', err);
+            ffmpegProcess = null;
+            streamActive = false;
+            if (animationFrameId) {
+                clearInterval(animationFrameId);
+                animationFrameId = null;
+            }
+        });
         
-    except Exception as e:
-        print(f"Error starting stream: {e}")
-        return False
+        ffmpegProcess.stdin.on('error', (err) => {
+            if (err.code !== 'EPIPE') {
+                console.error('FFmpeg stdin error:', err);
+            }
+        });
+        
+        // Wait a moment and check if FFmpeg started successfully
+        setTimeout(() => {
+            if (ffmpegProcess && !ffmpegProcess.killed) {
+                streamActive = true;
+                console.log(`FFmpeg started successfully, PID: ${ffmpegProcess.pid}`);
+                
+                // Start animation loop
+                animationFrameId = setInterval(animate, 1000 / 30); // 30fps
+            } else {
+                console.error('FFmpeg failed to start');
+                streamActive = false;
+            }
+        }, 3000);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Error starting stream:', error);
+        return false;
+    }
+}
 
-def stop_live_stream():
-    """Stop the live stream and cleanup HLS files"""
-    global ffmpeg_process, stream_active
-    
-    try:
-        if ffmpeg_process and ffmpeg_process.poll() is None:
-            ffmpeg_process.terminate()
-            ffmpeg_process.wait(timeout=5)
-        
-        ffmpeg_process = None
-        stream_active = False
-        
-        # Clean up HLS files
-        if os.path.exists(hls_output_dir):
-            shutil.rmtree(hls_output_dir)
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error stopping stream: {e}")
-        return False
-
-def cleanup_on_exit():
-    """Cleanup function for graceful shutdown"""
-    stop_live_stream()
-    sys.exit(0)
-
-@app.route('/')
-def index():
-    """Serve the main page"""
-    return render_template_string(HTML_TEMPLATE)
-
-@app.route('/restart_stream', methods=['POST'])
-def restart_stream():
-    """Restart the live stream"""
-    try:
-        # Stop current stream
-        stop_live_stream()
-        time.sleep(2)  # Wait a moment
-        
-        # Start new stream
-        success = start_live_stream()
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': 'Stream restarted successfully',
-                'timestamp': datetime.now().isoformat()
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to restart stream',
-                'timestamp': datetime.now().isoformat()
-            }), 500
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
-
-@app.route('/playlist.m3u8')
-def serve_playlist():
-    """Serve the HLS playlist"""
-    print(f"Playlist request - stream_active: {stream_active}, playlist exists: {os.path.exists(playlist_file) if stream_active else False}")
-    if not stream_active or not os.path.exists(playlist_file):
-        return jsonify({'error': 'No active stream available'}), 404
-    
-    return send_file(
-        playlist_file,
-        mimetype='application/vnd.apple.mpegurl',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
+function stopLiveStream() {
+    try {
+        if (ffmpegProcess && !ffmpegProcess.killed) {
+            ffmpegProcess.kill('SIGTERM');
+            ffmpegProcess = null;
         }
-    )
-
-@app.route('/<path:filename>')
-def serve_hls_segment(filename):
-    """Serve HLS segments and other files"""
-    if not stream_active:
-        return jsonify({'error': 'No active stream available'}), 404
-    
-    file_path = os.path.join(hls_output_dir, filename)
-    if not os.path.exists(file_path):
-        return jsonify({'error': 'File not found'}), 404
-    
-    # Determine MIME type based on file extension
-    if filename.endswith('.ts'):
-        mimetype = 'video/mp2t'
-    elif filename.endswith('.m3u8'):
-        mimetype = 'application/vnd.apple.mpegurl'
-    else:
-        mimetype = 'application/octet-stream'
-    
-    return send_file(
-        file_path,
-        mimetype=mimetype,
-        headers={
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
+        
+        streamActive = false;
+        
+        if (animationFrameId) {
+            clearInterval(animationFrameId);
+            animationFrameId = null;
         }
-    )
+        
+        // Clean up HLS files
+        if (fs.existsSync(hlsOutputDir)) {
+            const files = fs.readdirSync(hlsOutputDir);
+            files.forEach(file => {
+                if (file.endsWith('.ts') || file.endsWith('.m3u8')) {
+                    fs.unlinkSync(path.join(hlsOutputDir, file));
+                }
+            });
+        }
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Error stopping stream:', error);
+        return false;
+    }
+}
 
-@app.route('/stream_info')
-def stream_info():
-    """Get stream URL and information"""
-    playlist_exists = os.path.exists(playlist_file) if stream_active else False
-    segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts"))) if stream_active else 0
+// Routes
+app.get('/', (req, res) => {
+    res.send(HTML_TEMPLATE);
+});
+
+app.post('/restart_stream', (req, res) => {
+    try {
+        // Stop current stream
+        stopLiveStream();
+        
+        // Wait a moment
+        setTimeout(() => {
+            // Start new stream
+            const success = startLiveStream();
+            
+            if (success) {
+                res.json({
+                    success: true,
+                    message: 'Stream restarted successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to restart stream',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }, 2000);
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.get('/playlist.m3u8', (req, res) => {
+    console.log(`Playlist request - stream_active: ${streamActive}, playlist exists: ${fs.existsSync(playlistFile)}`);
     
-    # Get the server's external IP or localhost
-    import socket
-    try:
-        # Try to get external IP
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        external_ip = s.getsockname()[0]
-        s.close()
-    except:
-        external_ip = "localhost"
+    if (!streamActive || !fs.existsSync(playlistFile)) {
+        return res.status(404).json({ error: 'No active stream available' });
+    }
     
-    return jsonify({
-        'stream_active': stream_active,
-        'playlist_exists': playlist_exists,
-        'segment_count': segment_count,
-        'stream_urls': {
-            'playlist_url': f"http://{external_ip}:5000/playlist.m3u8",
-            'localhost_url': "http://localhost:5000/playlist.m3u8",
-            'direct_playlist': f"http://{external_ip}:5000/playlist.m3u8"
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(playlistFile);
+});
+
+app.get('/segment_*.ts', (req, res) => {
+    if (!streamActive) {
+        return res.status(404).json({ error: 'No active stream available' });
+    }
+    
+    const filename = req.params[0];
+    const filePath = path.join(hlsOutputDir, filename);
+    
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+    
+    res.setHeader('Content-Type', 'video/mp2t');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(filePath);
+});
+
+app.get('/stream_info', (req, res) => {
+    const playlistExists = fs.existsSync(playlistFile) && streamActive;
+    const segmentCount = streamActive ? fs.readdirSync(hlsOutputDir).filter(f => f.endsWith('.ts')).length : 0;
+    
+    // Get the server's external IP or localhost
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    let externalIp = 'localhost';
+    
+    for (const interfaceName in networkInterfaces) {
+        const interfaces = networkInterfaces[interfaceName];
+        for (const iface of interfaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                externalIp = iface.address;
+                break;
+            }
+        }
+        if (externalIp !== 'localhost') break;
+    }
+    
+    res.json({
+        stream_active: streamActive,
+        playlist_exists: playlistExists,
+        segment_count: segmentCount,
+        stream_urls: {
+            playlist_url: `http://${externalIp}:${PORT}/playlist.m3u8`,
+            localhost_url: `http://localhost:${PORT}/playlist.m3u8`,
+            direct_playlist: `http://${externalIp}:${PORT}/playlist.m3u8`
         },
-        'instructions': {
-            'vlc': f"Open VLC → Media → Open Network Stream → Enter: http://{external_ip}:5000/playlist.m3u8",
-            'obs': f"Add Media Source → Enter URL: http://{external_ip}:5000/playlist.m3u8",
-            'ffplay': f"Run: ffplay http://{external_ip}:5000/playlist.m3u8",
-            'browser': f"Open: http://{external_ip}:5000/playlist.m3u8"
+        instructions: {
+            vlc: `Open VLC → Media → Open Network Stream → Enter: http://${externalIp}:${PORT}/playlist.m3u8`,
+            obs: `Add Media Source → Enter URL: http://${externalIp}:${PORT}/playlist.m3u8`,
+            ffplay: `Run: ffplay http://${externalIp}:${PORT}/playlist.m3u8`,
+            browser: `Open: http://${externalIp}:${PORT}/playlist.m3u8`
         },
-        'timestamp': datetime.now().isoformat()
-    })
+        timestamp: new Date().toISOString()
+    });
+});
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint"""
-    playlist_exists = os.path.exists(playlist_file) if stream_active else False
-    segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts"))) if stream_active else 0
+app.get('/health', (req, res) => {
+    const playlistExists = fs.existsSync(playlistFile) && streamActive;
+    const segmentCount = streamActive ? fs.readdirSync(hlsOutputDir).filter(f => f.endsWith('.ts')).length : 0;
     
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'ffmpeg_available': check_ffmpeg(),
-        'stream_active': stream_active,
-        'hls_playlist_exists': playlist_exists,
-        'hls_segment_count': segment_count,
-        'server_uptime': str(datetime.now() - server_start_time)
-    })
+    const uptime = new Date() - serverStartTime;
+    const hours = Math.floor(uptime / (1000 * 60 * 60));
+    const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((uptime % (1000 * 60)) / 1000);
+    const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        ffmpeg_available: true, // Assuming FFmpeg is available in container
+        stream_active: streamActive,
+        hls_playlist_exists: playlistExists,
+        hls_segment_count: segmentCount,
+        server_uptime: uptimeStr
+    });
+});
 
-def check_ffmpeg():
-    """Check if FFmpeg is available"""
-    try:
-        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
-        return result.returncode == 0
-    except:
-        return False
+// Cleanup on exit
+process.on('SIGINT', () => {
+    console.log('\nShutting down server...');
+    stopLiveStream();
+    process.exit(0);
+});
 
-# Register signal handlers for graceful shutdown
-signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
-signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
+process.on('SIGTERM', () => {
+    console.log('\nShutting down server...');
+    stopLiveStream();
+    process.exit(0);
+});
 
-if __name__ == '__main__':
-    print("Live Timer Stream Server (HD Quality)")
-    print("=" * 40)
-    print(f"Server started at: {server_start_time}")
-    print("Starting server on http://0.0.0.0:5000")
-    print("HD quality HLS streaming with persistent timer")
-    print("Auto-starting live stream...")
-    
-    # Auto-start the stream when server boots up
-    def auto_start_stream():
-        time.sleep(3)  # Wait for server to be ready
-        success = start_live_stream()
-        if success:
-            print("✅ HD live stream started successfully")
-        else:
-            print("❌ Failed to start HD live stream")
-    
-    # Start stream in background thread
-    stream_thread = threading.Thread(target=auto_start_stream, daemon=True)
-    stream_thread.start()
-    
-    try:
-        # Start the Flask server
-        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
-    except KeyboardInterrupt:
-        print("\nShutting down server...")
-        cleanup_on_exit()
-    except Exception as e:
-        print(f"Server error: {e}")
-        cleanup_on_exit()
+// Start the server
+console.log("Live Timer Stream Server (HD Quality)");
+console.log("=" * 40);
+console.log(`Server started at: ${serverStartTime}`);
+console.log(`Starting server on http://0.0.0.0:${PORT}`);
+console.log("HD quality HLS streaming with persistent timer");
+console.log("Auto-starting live stream...");
+
+// Auto-start the stream when server boots up
+setTimeout(() => {
+    const success = startLiveStream();
+    if (success) {
+        console.log("✅ HD live stream started successfully");
+    } else {
+        console.log("❌ Failed to start HD live stream");
+    }
+}, 3000);
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});

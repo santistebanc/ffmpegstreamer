@@ -1,6 +1,6 @@
 # FFmpeg HLS Live Timer Stream
 
-A Docker containerized Flask server that streams a live video in HLS (HTTP Live Streaming) format showing a timer counting up from when the server started, with a moving square background animation.
+A Docker containerized Node.js server that streams a live video in HLS (HTTP Live Streaming) format showing a timer counting up from when the server started, with a moving square background animation using server-side canvas rendering.
 
 ## Features
 
@@ -13,6 +13,8 @@ A Docker containerized Flask server that streams a live video in HLS (HTTP Live 
 - 🎯 Low-latency streaming optimized for live viewing
 - 📺 Cross-platform compatibility (works on all modern browsers)
 - 🔄 Adaptive bitrate streaming with HLS segments
+- 🎨 Server-side canvas rendering with Node.js
+- 🚀 Pure JavaScript implementation (no Python dependencies)
 
 ## Quick Start
 
@@ -88,10 +90,9 @@ These platforms support Docker deployments:
 ## API Endpoints
 
 - `GET /` - Main web interface with HLS live stream controls
-- `POST /start_stream` - Start the HLS live timer stream
-- `POST /stop_stream` - Stop the HLS live timer stream
+- `POST /restart_stream` - Restart the HLS live timer stream
 - `GET /playlist.m3u8` - HLS playlist file (use this URL for external players)
-- `GET /<filename>` - HLS segments and other files
+- `GET /segment_*.ts` - HLS video segments
 - `GET /stream_info` - Get stream URL and usage instructions
 - `GET /health` - Health check endpoint with HLS stream status
 
@@ -133,18 +134,19 @@ The application runs on port 5000 by default. To change this:
 
 1. Modify the `EXPOSE` directive in the Dockerfile
 2. Update the port mapping in docker-compose.yml
-3. Change the port in the `app.run()` call in app.py
+3. Change the port in the `app.listen()` call in server.js
 
 ## Stream Specifications
 
 - **Type**: HLS (HTTP Live Streaming) - continuous
-- **Resolution**: 640x480
+- **Resolution**: 1280x720 (HD)
 - **Frame Rate**: 30 FPS
 - **Format**: H.264 video in MPEG-TS segments
-- **Segment Duration**: 2 seconds per segment
-- **Playlist Size**: 5 segments (10 seconds buffer)
+- **Segment Duration**: 4 seconds per segment
+- **Playlist Size**: 10 segments (40 seconds buffer)
 - **Animation**: Square moving in a circular pattern with timer overlay
 - **Timer**: Shows server uptime in HH:MM:SS format
+- **Rendering**: Server-side canvas with Node.js
 - **Latency**: Optimized for real-time viewing with HLS
 - **Compatibility**: Works on all modern browsers via HLS.js
 
@@ -152,7 +154,7 @@ The application runs on port 5000 by default. To change this:
 
 - Docker and Docker Compose
 - FFmpeg (included in the Docker image)
-- Python 3.11+ (included in the Docker image)
+- Node.js 18+ (included in the Docker image)
 
 ## Troubleshooting
 
@@ -167,7 +169,7 @@ The application runs on port 5000 by default. To change this:
    docker-compose logs ffmpeg-streamer
    ```
 
-4. **Health check fails**: The health check uses curl, which is included in the base image. If it fails, check if the Flask app is running properly.
+4. **Health check fails**: The health check uses curl, which is included in the base image. If it fails, check if the Node.js server is running properly.
 
 ### Viewing Logs
 

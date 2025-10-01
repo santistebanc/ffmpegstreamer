@@ -240,7 +240,7 @@ HTML_TEMPLATE = """
                 
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
                     console.log('HLS manifest parsed, starting playback');
-                    document.getElementById('status').textContent = 'Stream connected! PixiJS rendering active.';
+                    document.getElementById('status').textContent = 'Stream connected! Canvas rendering active.';
                     video.play();
                 });
                 
@@ -248,12 +248,20 @@ HTML_TEMPLATE = """
                     console.error('HLS error:', data);
                     if (data.fatal) {
                         document.getElementById('status').textContent = 'Stream error: ' + data.type;
+                        // Try to reconnect after a delay
+                        setTimeout(() => {
+                            if (hls) {
+                                hls.destroy();
+                                hls = null;
+                            }
+                            initHLS();
+                        }, 3000);
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = '/playlist.m3u8';
                 video.addEventListener('loadedmetadata', function() {
-                    document.getElementById('status').textContent = 'Stream connected! PixiJS rendering active.';
+                    document.getElementById('status').textContent = 'Stream connected! Canvas rendering active.';
                 });
             } else {
                 document.getElementById('status').textContent = 'HLS not supported in this browser';
@@ -410,10 +418,16 @@ HTML_TEMPLATE = """
             
             castContext.requestSession().then(
                 (session) => {
-                    const deviceName = session.getCastDevice().friendlyName;
-                    logCast("Connected to " + deviceName + "! Ready to cast stream.");
-                    castBtn.textContent = '📺 Connected to ' + deviceName;
-                    castStreamBtn.disabled = false;
+                    if (session && session.getCastDevice) {
+                        const deviceName = session.getCastDevice().friendlyName;
+                        logCast("Connected to " + deviceName + "! Ready to cast stream.");
+                        castBtn.textContent = '📺 Connected to ' + deviceName;
+                        castStreamBtn.disabled = false;
+                    } else {
+                        logCast("Invalid session received from Cast API");
+                        castBtn.disabled = false;
+                        castBtn.textContent = '📺 Connect to TV';
+                    }
                 },
                 (err) => {
                     logCast("Cast connection failed: " + JSON.stringify(err));
@@ -444,7 +458,7 @@ HTML_TEMPLATE = """
             const castStreamBtn = document.getElementById('castStreamBtn');
             castStreamBtn.disabled = true;
             castStreamBtn.textContent = '🎥 Casting...';
-            logCast("Casting PixiJS HLS stream: " + currentStreamUrl);
+            logCast("Casting Canvas HLS stream: " + currentStreamUrl);
             
             // Cast the HLS stream
             const mediaInfo = new chrome.cast.media.MediaInfo(currentStreamUrl, 'application/vnd.apple.mpegurl');
@@ -453,7 +467,7 @@ HTML_TEMPLATE = """
             
             // Add metadata
             mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-            mediaInfo.metadata.title = "PixiJS Live Stream";
+            mediaInfo.metadata.title = "Canvas Live Stream";
             mediaInfo.metadata.subtitle = "Server-Side Rendering with Timer";
             
             const request = new chrome.cast.media.LoadRequest(mediaInfo);
@@ -462,11 +476,11 @@ HTML_TEMPLATE = """
 
             session.loadMedia(request).then(
                 () => {
-                    logCast("PixiJS HLS stream sent to TV successfully! Stream is now playing on your LG TV.");
+                    logCast("Canvas HLS stream sent to TV successfully! Stream is now playing on your LG TV.");
                     castStreamBtn.textContent = '🎥 Casting Active';
                 },
                 (err) => {
-                    logCast("Error casting PixiJS HLS stream: " + JSON.stringify(err));
+                    logCast("Error casting Canvas HLS stream: " + JSON.stringify(err));
                     castStreamBtn.disabled = false;
                     castStreamBtn.textContent = '🎥 Cast Stream';
                 }
@@ -481,9 +495,28 @@ HTML_TEMPLATE = """
             }
         }
 
+        // Check if stream is already running and reconnect
+        function checkAndReconnect() {
+            fetch('/health')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.stream_active && data.hls_playlist_exists) {
+                        console.log('Stream is already running, reconnecting...');
+                        initHLS();
+                    } else {
+                        console.log('Stream not ready yet, will retry...');
+                        setTimeout(checkAndReconnect, 2000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking stream status:', error);
+                    setTimeout(checkAndReconnect, 2000);
+                });
+        }
+
         // Initialize everything
         document.addEventListener('DOMContentLoaded', function() {
-            initHLS();
+            checkAndReconnect();
             startTimer();
             updateStreamUrl('/playlist.m3u8');
         });

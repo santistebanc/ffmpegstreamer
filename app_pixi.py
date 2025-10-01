@@ -231,8 +231,27 @@ HTML_TEMPLATE = """
             if (Hls.isSupported()) {
                 hls = new Hls({
                     enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90
+                    lowLatencyMode: false,
+                    backBufferLength: 30,
+                    maxBufferLength: 60,
+                    maxMaxBufferLength: 120,
+                    liveSyncDurationCount: 3,
+                    liveMaxLatencyDurationCount: 5,
+                    liveDurationInfinity: true,
+                    highBufferWatchdogPeriod: 2,
+                    nudgeOffset: 0.1,
+                    nudgeMaxRetry: 3,
+                    maxFragLookUpTolerance: 0.25,
+                    liveBackBufferLength: 0,
+                    maxBufferHole: 0.1,
+                    maxSeekHole: 2,
+                    seekHoleNudgeDuration: 0.1,
+                    maxFragLookUpTolerance: 0.25,
+                    liveSyncDuration: 1,
+                    liveBackBufferLength: 0,
+                    fragLoadingTimeOut: 20000,
+                    manifestLoadingTimeOut: 10000,
+                    levelLoadingTimeOut: 10000
                 });
                 
                 hls.loadSource('/playlist.m3u8');
@@ -241,23 +260,41 @@ HTML_TEMPLATE = """
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
                     console.log('HLS manifest parsed, starting playback');
                     document.getElementById('status').textContent = 'Stream connected! Canvas rendering active.';
-                    video.play();
+                    video.play().catch(e => console.log('Autoplay prevented:', e));
                 });
                 
                 hls.on(Hls.Events.ERROR, function(event, data) {
                     console.error('HLS error:', data);
                     if (data.fatal) {
-                        document.getElementById('status').textContent = 'Stream error: ' + data.type;
-                        // Try to reconnect after a delay
-                        setTimeout(() => {
-                            if (hls) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.log('Fatal network error, trying to recover...');
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.log('Fatal media error, trying to recover...');
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                console.log('Fatal error, destroying and recreating...');
                                 hls.destroy();
                                 hls = null;
-                            }
-                            initHLS();
-                        }, 3000);
+                                setTimeout(() => {
+                                    initHLS();
+                                }, 3000);
+                                break;
+                        }
+                    } else {
+                        // Non-fatal error, just log it
+                        console.log('Non-fatal HLS error:', data.type, data.details);
                     }
                 });
+                
+                hls.on(Hls.Events.BUFFER_STALLED, function() {
+                    console.log('Buffer stalled, trying to recover...');
+                    hls.startLoad();
+                });
+                
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = '/playlist.m3u8';
                 video.addEventListener('loadedmetadata', function() {
@@ -418,19 +455,29 @@ HTML_TEMPLATE = """
             
             castContext.requestSession().then(
                 (session) => {
-                    if (session && session.getCastDevice) {
-                        const deviceName = session.getCastDevice().friendlyName;
-                        logCast("Connected to " + deviceName + "! Ready to cast stream.");
-                        castBtn.textContent = '📺 Connected to ' + deviceName;
-                        castStreamBtn.disabled = false;
+                    if (session && session.getCastDevice && session.getCastDevice()) {
+                        try {
+                            const deviceName = session.getCastDevice().friendlyName;
+                            logCast("Connected to " + deviceName + "! Ready to cast stream.");
+                            castBtn.textContent = '📺 Connected to ' + deviceName;
+                            castStreamBtn.disabled = false;
+                        } catch (e) {
+                            logCast("Error accessing Cast device: " + e.message);
+                            castBtn.disabled = false;
+                            castBtn.textContent = '📺 Connect to TV';
+                        }
                     } else {
-                        logCast("Invalid session received from Cast API");
+                        logCast("Invalid session received from Cast API - session or device is null");
                         castBtn.disabled = false;
                         castBtn.textContent = '📺 Connect to TV';
                     }
                 },
                 (err) => {
-                    logCast("Cast connection failed: " + JSON.stringify(err));
+                    if (err === 'cancel') {
+                        logCast("Cast connection cancelled by user");
+                    } else {
+                        logCast("Cast connection failed: " + (err.message || JSON.stringify(err)));
+                    }
                     castBtn.disabled = false;
                     castBtn.textContent = '📺 Connect to TV';
                 }

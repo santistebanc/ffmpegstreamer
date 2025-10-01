@@ -127,7 +127,20 @@ function animate() {
     
     // Send to FFmpeg if process exists
     if (ffmpegProcess && !ffmpegProcess.killed) {
-        ffmpegProcess.stdin.write(buffer);
+        try {
+            ffmpegProcess.stdin.write(buffer);
+        } catch (error) {
+            if (error.code === 'EPIPE') {
+                console.log('FFmpeg process ended, stopping animation...');
+                if (animationFrameId) {
+                    clearInterval(animationFrameId);
+                    animationFrameId = null;
+                }
+                ffmpegProcess = null;
+            } else {
+                console.error('Error writing to FFmpeg:', error);
+            }
+        }
     }
 }
 
@@ -141,17 +154,19 @@ function startFFmpeg() {
         '-r', '30',
         '-i', 'pipe:0',
         '-c:v', 'libx264',
-        '-preset', 'fast',
+        '-preset', 'ultrafast',
         '-tune', 'zerolatency',
-        '-crf', '18',
-        '-maxrate', '4M',
-        '-bufsize', '8M',
-        '-g', '60',
-        '-keyint_min', '60',
+        '-crf', '23',
+        '-maxrate', '2M',
+        '-bufsize', '4M',
+        '-g', '30',
+        '-keyint_min', '30',
         '-sc_threshold', '0',
+        '-profile:v', 'baseline',
+        '-level', '3.0',
         '-f', 'hls',
-        '-hls_time', '6',
-        '-hls_list_size', '10',
+        '-hls_time', '2',
+        '-hls_list_size', '6',
         '-hls_flags', 'delete_segments',
         '-hls_segment_filename', '/app/hls/segment_%03d.ts',
         '/app/hls/playlist.m3u8'
@@ -167,10 +182,26 @@ function startFFmpeg() {
     
     ffmpegProcess.on('close', (code) => {
         console.log(`FFmpeg process exited with code ${code}`);
+        ffmpegProcess = null;
+        if (animationFrameId) {
+            clearInterval(animationFrameId);
+            animationFrameId = null;
+        }
     });
     
     ffmpegProcess.on('error', (err) => {
         console.error('FFmpeg process error:', err);
+        ffmpegProcess = null;
+        if (animationFrameId) {
+            clearInterval(animationFrameId);
+            animationFrameId = null;
+        }
+    });
+    
+    ffmpegProcess.stdin.on('error', (err) => {
+        if (err.code !== 'EPIPE') {
+            console.error('FFmpeg stdin error:', err);
+        }
     });
 }
 

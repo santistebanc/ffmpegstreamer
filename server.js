@@ -439,11 +439,6 @@ async function initPixi() {
                 vy: (Math.random() - 0.5) * 2
             });
         }
-    } catch (error) {
-        console.log('⚠️ PixiJS initialization failed, falling back to enhanced canvas animation');
-        console.log('Error:', error.message);
-        initCanvasAnimation();
-    }
 }
 
 // Animation loop

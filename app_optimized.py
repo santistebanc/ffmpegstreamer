@@ -192,13 +192,19 @@ HTML_TEMPLATE = """
             
             restartCountBtn.disabled = true;
             restartCountBtn.textContent = '⏰ Restarting...';
-            document.getElementById('status').textContent = 'Restarting count...';
+            document.getElementById('status').textContent = 'Restarting count and stream...';
+            
+            // Destroy current HLS instance
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
             
             fetch('/restart_count', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('status').textContent = 'Count restarted! Timer reset to 00:00:00';
+                        document.getElementById('status').textContent = 'Count and stream restarted! Reconnecting...';
                         // Reset the timer display immediately
                         document.getElementById('timerDisplay').textContent = '00:00:00';
                         
@@ -206,7 +212,11 @@ HTML_TEMPLATE = """
                         if (timerInterval) {
                             clearInterval(timerInterval);
                         }
-                        startTimer();
+                        
+                        // Wait a moment for stream to be ready, then reconnect
+                        setTimeout(() => {
+                            connectToStream();
+                        }, 3000);
                     } else {
                         document.getElementById('status').textContent = 'Error: ' + data.error;
                         restartCountBtn.disabled = false;
@@ -223,7 +233,7 @@ HTML_TEMPLATE = """
                     setTimeout(() => {
                         restartCountBtn.disabled = false;
                         restartCountBtn.textContent = originalText;
-                    }, 3000);
+                    }, 5000);
                 });
         }
         
@@ -635,16 +645,29 @@ def restart_stream():
 
 @app.route('/restart_count', methods=['POST'])
 def restart_count():
-    """Restart the server uptime count/timer"""
+    """Restart the server uptime count/timer and restart the stream"""
     global server_start_time
     
     try:
         # Update the server start time to now
         server_start_time = datetime.now()
         
+        # Restart the stream so the video timer resets too
+        if stream_active:
+            stop_live_stream()
+            time.sleep(2)  # Wait a moment
+            success = start_live_stream()
+            
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'error': 'Count restarted but failed to restart stream',
+                    'timestamp': datetime.now().isoformat()
+                }), 500
+        
         return jsonify({
             'success': True,
-            'message': 'Count restarted successfully',
+            'message': 'Count and stream restarted successfully',
             'new_start_time': server_start_time.isoformat(),
             'timestamp': datetime.now().isoformat()
         })

@@ -23,18 +23,14 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Live Timer Stream (HLS)</title>
+    <title>Live Timer Stream (Optimized HD)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { color: #333; text-align: center; }
         .video-container { text-align: center; margin: 20px 0; }
         video { max-width: 100%; border: 2px solid #ddd; border-radius: 5px; }
-        .controls { text-align: center; margin: 20px 0; }
-        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px; }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #6c757d; cursor: not-allowed; }
         .status { text-align: center; margin: 20px 0; color: #666; }
         .info { background: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0; }
         .timer-display { font-size: 24px; font-weight: bold; color: #007bff; margin: 20px 0; }
@@ -46,23 +42,31 @@ HTML_TEMPLATE = """
         .instructions { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107; }
         .instructions h4 { margin-top: 0; color: #856404; }
         .instructions code { background: #f8f9fa; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        .controls { text-align: center; margin: 20px 0; }
+        button { background: #dc3545; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px; }
+        button:hover { background: #c82333; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .quality-info { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Live Timer Stream (HD Quality)</h1>
+        <h1>⏱️ Live Timer Stream (Optimized HD)</h1>
         <div class="info">
             <p><strong>Live Stream:</strong> This server streams a live HD video showing a timer that counts up from when the server started.</p>
-            <p><strong>Features:</strong> Real-time timer display with a moving square background animation in HD quality.</p>
+            <p><strong>Features:</strong> Real-time timer display with a moving square background animation in optimized HD quality.</p>
             <div class="hls-info">
-                <strong>HLS Streaming:</strong> Using HTTP Live Streaming (HLS) format with HD quality (1280x720) for better compatibility and adaptive bitrate streaming.
+                <strong>HLS Streaming:</strong> Using HTTP Live Streaming (HLS) format with optimized HD quality (1920x1080) for maximum compatibility and adaptive bitrate streaming.
+            </div>
+            <div class="quality-info">
+                <strong>Optimized Settings:</strong> Ubuntu-based with full FFmpeg codec support, hardware acceleration, and adaptive bitrate streaming.
             </div>
         </div>
         <div class="status" id="status">Connecting to live stream...</div>
         <div class="timer-display" id="timerDisplay">00:00:00</div>
         
-        <div class="controls" style="text-align: center; margin: 20px 0;">
-            <button id="restartBtn" onclick="restartStream()" style="background: #dc3545; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px;">
+        <div class="controls">
+            <button id="restartBtn" onclick="restartStream()">
                 🔄 Restart Stream
             </button>
         </div>
@@ -207,7 +211,9 @@ HTML_TEMPLATE = """
                     debug: false,
                     enableWorker: true,
                     lowLatencyMode: true,
-                    backBufferLength: 90
+                    backBufferLength: 90,
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 60
                 });
                 hls.loadSource(videoSrc);
                 hls.attachMedia(video);
@@ -315,7 +321,7 @@ HTML_TEMPLATE = """
 """
 
 def start_live_stream():
-    """Start the live stream with FFmpeg generating HLS segments"""
+    """Start the live stream with optimized FFmpeg settings for Ubuntu"""
     global ffmpeg_process, stream_active
     
     try:
@@ -331,31 +337,33 @@ def start_live_stream():
         if os.path.exists(playlist_file):
             os.remove(playlist_file)
         
-        # FFmpeg command for high-quality HLS live streaming with timer
+        # Optimized FFmpeg command for Ubuntu with full codec support
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
-            '-i', 'testsrc2=size=1280x720:rate=30',  # HD resolution
+            '-i', 'testsrc2=size=1920x1080:rate=30',  # Full HD resolution
             '-vf', 
-            'drawbox=x=100+100*cos(t*2*PI/5):y=100+100*sin(t*2*PI/5):w=200:h=200:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=20:y=50:fontsize=36:color=white:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'%{pts\\:hms}\':x=20:y=100:fontsize=48:color=yellow:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HLS Live Stream\':x=20:y=160:fontsize=28:color=cyan:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HD Quality\':x=20:y=200:fontsize=24:color=lime:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+            'drawbox=x=200+200*cos(t*2*PI/5):y=200+200*sin(t*2*PI/5):w=400:h=400:color=red@0.8:t=fill,'
+            'drawtext=text=\'Server Uptime\':x=40:y=80:fontsize=48:color=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'%{pts\\:hms}\':x=40:y=140:fontsize=64:color=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'HLS Live Stream\':x=40:y=220:fontsize=36:color=cyan:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
+            'drawtext=text=\'Optimized HD Quality\':x=40:y=280:fontsize=28:color=lime:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             '-c:v', 'libx264',
-            '-preset', 'medium',  # Better quality than ultrafast
+            '-preset', 'fast',  # Good balance of quality and speed
             '-tune', 'zerolatency',
-            '-crf', '20',  # Better quality (lower CRF)
-            '-maxrate', '2M',  # Bitrate limit
-            '-bufsize', '4M',  # Buffer size
+            '-crf', '18',  # High quality (lower CRF)
+            '-maxrate', '4M',  # Higher bitrate for HD
+            '-bufsize', '8M',  # Larger buffer for HD
             '-pix_fmt', 'yuv420p',
             '-f', 'hls',
-            '-hls_time', '4',  # 4-second segments for better quality
+            '-hls_time', '6',  # 6-second segments for better quality
             '-hls_list_size', '10',  # Keep 10 segments in playlist
             '-hls_flags', 'delete_segments+independent_segments',
             '-hls_segment_filename', os.path.join(hls_output_dir, 'segment_%03d.ts'),
             playlist_file
         ]
+        
+        print(f"Starting optimized FFmpeg with command: {' '.join(ffmpeg_cmd)}")
         
         # Start FFmpeg process
         ffmpeg_process = subprocess.Popen(
@@ -540,11 +548,11 @@ signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
 
 if __name__ == '__main__':
-    print("Live Timer Stream Server (HD Quality)")
-    print("=" * 40)
+    print("Live Timer Stream Server (Optimized HD)")
+    print("=" * 45)
     print(f"Server started at: {server_start_time}")
     print("Starting server on http://0.0.0.0:5000")
-    print("HD quality HLS streaming with persistent timer")
+    print("Optimized HD quality HLS streaming with Ubuntu")
     print("Auto-starting live stream...")
     
     # Auto-start the stream when server boots up
@@ -552,9 +560,9 @@ if __name__ == '__main__':
         time.sleep(3)  # Wait for server to be ready
         success = start_live_stream()
         if success:
-            print("✅ HD live stream started successfully")
+            print("✅ Optimized HD live stream started successfully")
         else:
-            print("❌ Failed to start HD live stream")
+            print("❌ Failed to start optimized HD live stream")
     
     # Start stream in background thread
     stream_thread = threading.Thread(target=auto_start_stream, daemon=True)

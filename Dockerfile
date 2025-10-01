@@ -37,7 +37,7 @@ COPY server.js .
 RUN mkdir -p /app/hls
 
 # Create a non-root user for security
-RUN adduser -D -u 1000 appuser && chown -R appuser:appuser /app
+RUN adduser -D -s /bin/sh appuser || true && chown -R appuser:appuser /app
 USER appuser
 
 # Expose port 5000

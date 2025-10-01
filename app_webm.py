@@ -19,7 +19,7 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Live Timer Stream (Simple)</title>
+    <title>Live Timer Stream (WebM)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -38,12 +38,12 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Live Timer Stream (Simple)</h1>
+        <h1>⏱️ Live Timer Stream (WebM)</h1>
         <div class="info">
-            <p><strong>Simple Mode:</strong> Basic test pattern with timer overlay in browser.</p>
+            <p><strong>WebM Mode:</strong> Uses WebM format for better browser compatibility.</p>
             <p><strong>Features:</strong> Moving test pattern with JavaScript timer.</p>
             <div class="warning">
-                <strong>Note:</strong> This version uses the simplest possible FFmpeg command to ensure compatibility.
+                <strong>Note:</strong> This version uses WebM format which is more compatible with browsers for live streaming.
             </div>
         </div>
         <div class="controls">
@@ -55,7 +55,7 @@ HTML_TEMPLATE = """
         
         <div class="video-container" id="videoContainer" style="display: none;">
             <video id="videoPlayer" autoplay muted controls>
-                <source src="/stream" type="video/mp4">
+                <source src="/stream" type="video/webm">
                 Your browser does not support the video tag.
             </video>
             <div id="videoInfo" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
@@ -184,26 +184,23 @@ HTML_TEMPLATE = """
 """
 
 def start_live_stream():
-    """Start the live stream with simplest possible FFmpeg command"""
+    """Start the live stream with WebM format"""
     global ffmpeg_process, stream_active
     
     try:
         if ffmpeg_process and ffmpeg_process.poll() is None:
             return True, "Stream already running"
         
-        # FFmpeg command optimized for browser streaming
+        # FFmpeg command for WebM streaming
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
             '-i', 'testsrc2=size=320x240:rate=15',
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-tune', 'zerolatency',
-            '-crf', '23',
+            '-c:v', 'libvpx-vp8',  # WebM video codec
+            '-b:v', '500k',  # Bitrate
+            '-crf', '30',
             '-pix_fmt', 'yuv420p',
-            '-f', 'mp4',
-            '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-            '-reset_timestamps', '1',
+            '-f', 'webm',
             'pipe:1'
         ]
         
@@ -333,11 +330,11 @@ def stream_video():
     
     return Response(
         generate(),
-        mimetype='video/mp4',
+        mimetype='video/webm',
         headers={
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
-            'Content-Type': 'video/mp4'
+            'Content-Type': 'video/webm'
         }
     )
 
@@ -365,11 +362,11 @@ signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
 
 if __name__ == '__main__':
-    print("Live Timer Stream Server (Simple)")
-    print("=" * 40)
+    print("Live Timer Stream Server (WebM)")
+    print("=" * 35)
     print(f"Server started at: {server_start_time}")
     print("Starting server on http://0.0.0.0:5000")
-    print("Simple mode - basic test pattern with browser timer")
+    print("WebM mode - better browser compatibility")
     
     try:
         # Start the Flask server

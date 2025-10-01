@@ -69,6 +69,9 @@ HTML_TEMPLATE = """
             <button id="restartBtn" onclick="restartStream()">
                 🔄 Restart Stream
             </button>
+            <button id="restartCountBtn" onclick="restartCount()" style="background: #17a2b8;">
+                ⏰ Restart Count
+            </button>
         </div>
         
         <div class="stream-url" id="streamUrlSection" style="display: none;">
@@ -168,6 +171,47 @@ HTML_TEMPLATE = """
                         restartBtn.disabled = false;
                         restartBtn.textContent = originalText;
                     }, 5000);
+                });
+        }
+        
+        function restartCount() {
+            const restartCountBtn = document.getElementById('restartCountBtn');
+            const originalText = restartCountBtn.textContent;
+            
+            restartCountBtn.disabled = true;
+            restartCountBtn.textContent = '⏰ Restarting...';
+            document.getElementById('status').textContent = 'Restarting count...';
+            
+            fetch('/restart_count', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('status').textContent = 'Count restarted! Timer reset to 00:00:00';
+                        // Reset the timer display immediately
+                        document.getElementById('timerDisplay').textContent = '00:00:00';
+                        
+                        // Restart the timer from zero
+                        if (timerInterval) {
+                            clearInterval(timerInterval);
+                        }
+                        startTimer();
+                    } else {
+                        document.getElementById('status').textContent = 'Error: ' + data.error;
+                        restartCountBtn.disabled = false;
+                        restartCountBtn.textContent = originalText;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('status').textContent = 'Error: ' + error.message;
+                    restartCountBtn.disabled = false;
+                    restartCountBtn.textContent = originalText;
+                })
+                .finally(() => {
+                    // Re-enable button after a delay
+                    setTimeout(() => {
+                        restartCountBtn.disabled = false;
+                        restartCountBtn.textContent = originalText;
+                    }, 3000);
                 });
         }
         
@@ -446,6 +490,28 @@ def restart_stream():
                 'error': 'Failed to restart stream - check server logs for FFmpeg errors',
                 'timestamp': datetime.now().isoformat()
             }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/restart_count', methods=['POST'])
+def restart_count():
+    """Restart the server uptime count/timer"""
+    global server_start_time
+    
+    try:
+        # Update the server start time to now
+        server_start_time = datetime.now()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Count restarted successfully',
+            'new_start_time': server_start_time.isoformat(),
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
         return jsonify({
             'success': False,

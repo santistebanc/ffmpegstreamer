@@ -192,19 +192,13 @@ HTML_TEMPLATE = """
             
             restartCountBtn.disabled = true;
             restartCountBtn.textContent = '⏰ Restarting...';
-            document.getElementById('status').textContent = 'Restarting count and stream...';
-            
-            // Destroy current HLS instance
-            if (hls) {
-                hls.destroy();
-                hls = null;
-            }
+            document.getElementById('status').textContent = 'Restarting count...';
             
             fetch('/restart_count', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('status').textContent = 'Count and stream restarted! Reconnecting...';
+                        document.getElementById('status').textContent = 'Count restarted! Stream continues uninterrupted.';
                         // Reset the timer display immediately
                         document.getElementById('timerDisplay').textContent = '00:00:00';
                         
@@ -212,11 +206,7 @@ HTML_TEMPLATE = """
                         if (timerInterval) {
                             clearInterval(timerInterval);
                         }
-                        
-                        // Wait a moment for stream to be ready, then reconnect
-                        setTimeout(() => {
-                            connectToStream();
-                        }, 3000);
+                        startTimer();
                     } else {
                         document.getElementById('status').textContent = 'Error: ' + data.error;
                         restartCountBtn.disabled = false;
@@ -233,7 +223,7 @@ HTML_TEMPLATE = """
                     setTimeout(() => {
                         restartCountBtn.disabled = false;
                         restartCountBtn.textContent = originalText;
-                    }, 5000);
+                    }, 3000);
                 });
         }
         
@@ -528,11 +518,13 @@ def start_live_stream():
             os.remove(playlist_file)
         
         # Optimized FFmpeg command for Ubuntu with full codec support
+        # Using setpts to create a custom timer that can be adjusted
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
             '-i', 'testsrc2=size=1920x1080:rate=30',  # Full HD resolution
             '-vf', 
+            'setpts=PTS-STARTPTS,'
             'drawbox=x=200+200*cos(t*2*PI/5):y=200+200*sin(t*2*PI/5):w=400:h=400:color=red@0.8:t=fill,'
             'drawtext=text=\'Server Uptime\':x=40:y=80:fontsize=48:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
             'drawtext=text=\'%{pts\\:hms}\':x=40:y=140:fontsize=64:fontcolor=yellow:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,'
@@ -645,29 +637,16 @@ def restart_stream():
 
 @app.route('/restart_count', methods=['POST'])
 def restart_count():
-    """Restart the server uptime count/timer and restart the stream"""
+    """Restart the server uptime count/timer without interrupting the stream"""
     global server_start_time
     
     try:
         # Update the server start time to now
         server_start_time = datetime.now()
         
-        # Restart the stream so the video timer resets too
-        if stream_active:
-            stop_live_stream()
-            time.sleep(2)  # Wait a moment
-            success = start_live_stream()
-            
-            if not success:
-                return jsonify({
-                    'success': False,
-                    'error': 'Count restarted but failed to restart stream',
-                    'timestamp': datetime.now().isoformat()
-                }), 500
-        
         return jsonify({
             'success': True,
-            'message': 'Count and stream restarted successfully',
+            'message': 'Count restarted successfully - stream continues uninterrupted',
             'new_start_time': server_start_time.isoformat(),
             'timestamp': datetime.now().isoformat()
         })

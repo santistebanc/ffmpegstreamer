@@ -46,7 +46,11 @@ HTML_TEMPLATE = """
         button { background: #dc3545; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px; }
         button:hover { background: #c82333; }
         button:disabled { background: #6c757d; cursor: not-allowed; }
+        .cast-btn { background: #4285f4; }
+        .cast-btn:hover { background: #3367d6; }
+        .cast-btn:disabled { background: #ccc; }
         .quality-info { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; font-size: 14px; }
+        .cast-status { margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-family: monospace; white-space: pre-wrap; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -72,7 +76,15 @@ HTML_TEMPLATE = """
             <button id="restartCountBtn" onclick="restartCount()" style="background: #17a2b8;">
                 ⏰ Restart Count
             </button>
+            <button id="castBtn" class="cast-btn" onclick="connectCast()" disabled>
+                📺 Connect to TV
+            </button>
+            <button id="castStreamBtn" class="cast-btn" onclick="castStream()" disabled>
+                🎥 Cast Stream
+            </button>
         </div>
+        
+        <div class="cast-status" id="castStatus">Loading Cast SDK...</div>
         
         <div class="stream-url" id="streamUrlSection" style="display: none;">
             <h3>📡 Stream URL for External Players</h3>
@@ -220,8 +232,12 @@ HTML_TEMPLATE = """
                 .then(response => response.json())
                 .then(data => {
                     if (data.stream_active && data.playlist_exists) {
-                        document.getElementById('streamUrl').value = data.stream_urls.playlist_url;
+                        const streamUrl = data.stream_urls.playlist_url;
+                        document.getElementById('streamUrl').value = streamUrl;
                         document.getElementById('streamUrlSection').style.display = 'block';
+                        
+                        // Update cast functionality with stream URL
+                        updateStreamUrl(streamUrl);
                     }
                 })
                 .catch(error => {
@@ -359,6 +375,126 @@ HTML_TEMPLATE = """
         window.onload = function() {
             connectToStream();
         };
+    </script>
+    
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework"></script>
+    <script>
+        // Cast functionality
+        let castContext = null;
+        let currentStreamUrl = '';
+        
+        function logCast(msg) {
+            const statusEl = document.getElementById('castStatus');
+            statusEl.textContent = msg;
+            console.log('Cast:', msg);
+        }
+        
+        // Called when Cast API is loaded
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            if (isAvailable) {
+                try {
+                    castContext = cast.framework.CastContext.getInstance();
+                    castContext.setOptions({
+                        receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                    });
+                    
+                    document.getElementById('castBtn').disabled = false;
+                    logCast("Cast API ready. Click 'Connect to TV' to connect to your LG TV.");
+                } catch (error) {
+                    logCast("Error initializing Cast API: " + error.message);
+                }
+            } else {
+                logCast("Cast API not available. Use Chrome or a Cast-enabled browser.");
+            }
+        };
+        
+        function connectCast() {
+            if (!castContext) {
+                logCast("Cast API not available.");
+                return;
+            }
+            
+            const castBtn = document.getElementById('castBtn');
+            const castStreamBtn = document.getElementById('castStreamBtn');
+            
+            castBtn.disabled = true;
+            castBtn.textContent = '📺 Connecting...';
+            logCast("Connecting to Cast device...");
+            
+            castContext.requestSession().then(
+                (session) => {
+                    const deviceName = session.getCastDevice().friendlyName;
+                    logCast("Connected to " + deviceName + "! Ready to cast stream.");
+                    castBtn.textContent = '📺 Connected to ' + deviceName;
+                    castStreamBtn.disabled = false;
+                },
+                (err) => {
+                    logCast("Cast connection failed: " + JSON.stringify(err));
+                    castBtn.disabled = false;
+                    castBtn.textContent = '📺 Connect to TV';
+                }
+            );
+        }
+        
+        function castStream() {
+            if (!castContext) {
+                logCast("Cast API not available.");
+                return;
+            }
+            
+            const session = castContext.getCurrentSession();
+            if (!session) {
+                logCast("Please connect to a Cast device first (press the Connect to TV button).");
+                return;
+            }
+            
+            // Get the current stream URL
+            if (!currentStreamUrl) {
+                logCast("No stream URL available. Please wait for stream to start.");
+                return;
+            }
+            
+            const castStreamBtn = document.getElementById('castStreamBtn');
+            castStreamBtn.disabled = true;
+            castStreamBtn.textContent = '🎥 Casting...';
+            logCast("Casting HLS stream: " + currentStreamUrl);
+            
+            // Cast the HLS stream
+            const mediaInfo = new chrome.cast.media.MediaInfo(currentStreamUrl, 'application/vnd.apple.mpegurl');
+            mediaInfo.contentType = 'application/vnd.apple.mpegurl';
+            mediaInfo.streamType = chrome.cast.media.StreamType.LIVE;
+            
+            // Add metadata
+            mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+            mediaInfo.metadata.title = "Live Timer Stream";
+            mediaInfo.metadata.subtitle = "HD HLS Stream with Timer";
+            
+            const request = new chrome.cast.media.LoadRequest(mediaInfo);
+            request.currentTime = 0;
+            request.autoplay = true;
+
+            session.loadMedia(request).then(
+                () => {
+                    logCast("HLS stream sent to TV successfully! Stream is now playing on your LG TV.");
+                    castStreamBtn.textContent = '🎥 Casting Active';
+                },
+                (err) => {
+                    logCast("Error casting HLS stream: " + JSON.stringify(err));
+                    castStreamBtn.disabled = false;
+                    castStreamBtn.textContent = '🎥 Cast Stream';
+                }
+            );
+        }
+        
+        // Update stream URL when stream info is loaded
+        function updateStreamUrl(url) {
+            currentStreamUrl = url;
+            if (castContext && castContext.getCurrentSession()) {
+                document.getElementById('castStreamBtn').disabled = false;
+            }
+        }
     </script>
 </body>
 </html>

@@ -236,7 +236,7 @@ HTML_TEMPLATE = """
                     maxBufferLength: 10,
                     maxMaxBufferLength: 20,
                     liveSyncDurationCount: 1,
-                    liveMaxLatencyDurationCount: 1,
+                    liveMaxLatencyDurationCount: 2,
                     liveDurationInfinity: true,
                     highBufferWatchdogPeriod: 0.2,
                     nudgeOffset: 0.05,

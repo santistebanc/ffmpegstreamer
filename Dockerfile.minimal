@@ -1,13 +1,10 @@
-# Use Python 3.11 alpine image as base (much smaller)
+# Minimal version without fonts - uses basic text rendering
 FROM python:3.11-alpine
 
-# Install system dependencies including FFmpeg and fonts
+# Install only essential packages
 RUN apk add --no-cache \
     ffmpeg \
-    fontconfig \
-    ttf-dejavu \
-    curl \
-    && rm -rf /var/cache/apk/*
+    curl
 
 # Set working directory
 WORKDIR /app
@@ -19,10 +16,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app.py .
+COPY app_minimal.py app.py
 
 # Create a non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN adduser -D -s /bin/sh appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Expose port 5000

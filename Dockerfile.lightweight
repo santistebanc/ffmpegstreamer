@@ -1,13 +1,11 @@
-# Use Python 3.11 alpine image as base (much smaller)
-FROM python:3.11-alpine
+# Ultra-lightweight version using pre-built FFmpeg image
+FROM jrottenberg/ffmpeg:4.4-alpine
 
-# Install system dependencies including FFmpeg and fonts
-RUN apk add --no-cache \
-    ffmpeg \
-    fontconfig \
-    ttf-dejavu \
-    curl \
-    && rm -rf /var/cache/apk/*
+# Install Python and pip
+RUN apk add --no-cache python3 py3-pip
+
+# Create symbolic link for python command
+RUN ln -sf python3 /usr/bin/python
 
 # Set working directory
 WORKDIR /app
@@ -22,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 
 # Create a non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN adduser -D -s /bin/sh appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Expose port 5000

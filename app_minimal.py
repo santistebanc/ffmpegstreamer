@@ -273,16 +273,16 @@ def start_live_stream():
         if os.path.exists(playlist_file):
             os.remove(playlist_file)
         
-        # FFmpeg command for HLS live streaming with timer
+        # FFmpeg command for HLS live streaming with timer (no custom fonts)
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
             '-i', 'testsrc2=size=640x480:rate=30',
             '-vf', 
             'drawbox=x=50+50*cos(t*2*PI/5):y=50+50*sin(t*2*PI/5):w=100:h=100:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=10:y=30:fontsize=24:color=white:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'%{pts\\:hms}\':x=10:y=60:fontsize=32:color=yellow:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf,'
-            'drawtext=text=\'HLS Live Stream\':x=10:y=100:fontsize=20:color=cyan:fontfile=/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+            'drawtext=text=\'Server Uptime\':x=10:y=30:fontsize=24:color=white,'
+            'drawtext=text=\'%{pts\\:hms}\':x=10:y=60:fontsize=32:color=yellow,'
+            'drawtext=text=\'HLS Live Stream\':x=10:y=100:fontsize=20:color=cyan',
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
@@ -495,8 +495,8 @@ signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
 
 if __name__ == '__main__':
-    print("Live Timer Stream Server")
-    print("=" * 30)
+    print("Live Timer Stream Server (Minimal)")
+    print("=" * 40)
     print(f"Server started at: {server_start_time}")
     print("Starting server on http://0.0.0.0:5000")
     print("The live stream will show a timer counting up from server start time")

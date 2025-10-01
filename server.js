@@ -1,12 +1,9 @@
-// Import pixi-shim first to set up the environment
-require('pixi-shim');
-
 const express = require('express');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
-const { Application, Graphics, Text, Sprite, Texture, Container, Ticker } = require('pixi.js');
+const { Application, Graphics, Text, Sprite, Texture, Container, Ticker } = require('pixi.js-legacy');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -344,20 +341,18 @@ let pixiApp, container, square, titleText, timerText, subtitleText, qualityText,
 // Create PixiJS application
 async function initPixi() {
     // Create PixiJS application with canvas renderer for server-side
-    pixiApp = new Application();
-    await pixiApp.init({
+    pixiApp = new Application({
         width: 1280,
         height: 720,
-        background: 0x000000,
+        backgroundColor: 0x000000,
         antialias: true,
         resolution: 1,
-        canvas: canvas,
+        view: canvas,
         forceCanvas: true,  // Force canvas renderer for server-side
-        powerPreference: 'high-performance',
         sharedTicker: false  // Disable shared ticker for server-side
     });
 
-    console.log('✅ PixiJS initialized successfully with pixi-shim');
+    console.log('✅ PixiJS legacy initialized successfully');
 
         // Create animated objects
         container = new Container();
@@ -370,58 +365,46 @@ async function initPixi() {
         square.alpha = 0.8;
         container.addChild(square);
 
-        // Create text elements
-        titleText = new Text({
-            text: 'PixiJS Live Stream',
-            style: {
-                fontFamily: 'Arial',
-                fontSize: 36,
-                fill: 0xFFFFFF,
-                align: 'left'
-            }
-        });
-        titleText.x = 20;
-        titleText.y = 50;
-        container.addChild(titleText);
+    // Create text elements
+    titleText = new Text('PixiJS Live Stream', {
+        fontFamily: 'Arial',
+        fontSize: 36,
+        fill: 0xFFFFFF,
+        align: 'left'
+    });
+    titleText.x = 20;
+    titleText.y = 50;
+    container.addChild(titleText);
 
-        timerText = new Text({
-            text: '00:00:00',
-            style: {
-                fontFamily: 'Arial',
-                fontSize: 48,
-                fill: 0xFFFF00,
-                align: 'left'
-            }
-        });
-        timerText.x = 20;
-        timerText.y = 100;
-        container.addChild(timerText);
+    timerText = new Text('00:00:00', {
+        fontFamily: 'Arial',
+        fontSize: 48,
+        fill: 0xFFFF00,
+        align: 'left'
+    });
+    timerText.x = 20;
+    timerText.y = 100;
+    container.addChild(timerText);
 
-        subtitleText = new Text({
-            text: 'Server-Side Rendering',
-            style: {
-                fontFamily: 'Arial',
-                fontSize: 28,
-                fill: 0x00FFFF,
-                align: 'left'
-            }
-        });
-        subtitleText.x = 20;
-        subtitleText.y = 160;
-        container.addChild(subtitleText);
+    subtitleText = new Text('Server-Side Rendering', {
+        fontFamily: 'Arial',
+        fontSize: 28,
+        fill: 0x00FFFF,
+        align: 'left'
+    });
+    subtitleText.x = 20;
+    subtitleText.y = 160;
+    container.addChild(subtitleText);
 
-        qualityText = new Text({
-            text: 'HD Quality with PixiJS',
-            style: {
-                fontFamily: 'Arial',
-                fontSize: 24,
-                fill: 0x00FF00,
-                align: 'left'
-            }
-        });
-        qualityText.x = 20;
-        qualityText.y = 200;
-        container.addChild(qualityText);
+    qualityText = new Text('HD Quality with PixiJS', {
+        fontFamily: 'Arial',
+        fontSize: 24,
+        fill: 0x00FF00,
+        align: 'left'
+    });
+    qualityText.x = 20;
+    qualityText.y = 200;
+    container.addChild(qualityText);
 
         // Add some additional animated elements
         particles = [];

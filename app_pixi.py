@@ -246,8 +246,6 @@ HTML_TEMPLATE = """
                     maxBufferHole: 0.1,
                     maxSeekHole: 2,
                     seekHoleNudgeDuration: 0.1,
-                    liveSyncDuration: 1,
-                    liveBackBufferLength: 0,
                     fragLoadingTimeOut: 30000,
                     manifestLoadingTimeOut: 15000,
                     levelLoadingTimeOut: 15000,

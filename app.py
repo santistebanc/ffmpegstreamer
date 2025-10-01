@@ -15,7 +15,7 @@ app = Flask(__name__)
 server_start_time = datetime.now()
 ffmpeg_process = None
 stream_active = False
-hls_output_dir = "/tmp/hls"
+hls_output_dir = "/app/hls"
 playlist_file = os.path.join(hls_output_dir, "playlist.m3u8")
 
 # HTML template for the web interface

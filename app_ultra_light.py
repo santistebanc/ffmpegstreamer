@@ -23,7 +23,7 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Live Timer Stream (Debug)</title>
+    <title>Live Timer Stream (Ultra Light)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
@@ -38,26 +38,49 @@ HTML_TEMPLATE = """
         .status { text-align: center; margin: 20px 0; color: #666; }
         .info { background: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0; }
         .timer-display { font-size: 24px; font-weight: bold; color: #007bff; margin: 20px 0; }
-        .debug-info { background: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc3545; }
-        .debug-info pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .stream-url { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #007bff; }
+        .stream-url input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; }
+        .copy-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-left: 5px; }
+        .copy-btn:hover { background: #218838; }
+        .instructions { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .instructions h4 { margin-top: 0; color: #856404; }
+        .instructions code { background: #f8f9fa; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Live Timer Stream (Debug Mode)</h1>
+        <h1>⏱️ Live Timer Stream (Ultra Light)</h1>
         <div class="info">
-            <p><strong>Debug Mode:</strong> This version provides detailed error information to help troubleshoot issues.</p>
+            <p><strong>Ultra Light Mode:</strong> Optimized for VPS with very limited disk space.</p>
+            <p><strong>Features:</strong> Minimal HLS buffer, smaller segments, automatic cleanup.</p>
         </div>
         <div class="controls">
             <button id="startBtn" onclick="startStream()">Start Live Stream</button>
             <button id="stopBtn" onclick="stopStream()" disabled>Stop Stream</button>
-            <button onclick="checkSystem()">Check System</button>
         </div>
         <div class="status" id="status">Ready to start live stream</div>
-        <div class="debug-info" id="debugInfo" style="display: none;">
-            <h4>Debug Information:</h4>
-            <pre id="debugText">Click "Check System" to see debug info</pre>
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+        
+        <div class="stream-url" id="streamUrlSection" style="display: none;">
+            <h3>📡 Stream URL for External Players</h3>
+            <p>Use this URL in VLC, OBS, or other streaming applications:</p>
+            <input type="text" id="streamUrl" readonly value="Stream not started yet">
+            <button class="copy-btn" onclick="copyStreamUrl()">Copy URL</button>
+            <div class="instructions">
+                <h4>How to use this stream:</h4>
+                <p><strong>VLC Media Player:</strong></p>
+                <p>1. Open VLC → Media → Open Network Stream</p>
+                <p>2. Paste the URL above and click Play</p>
+                <p><strong>OBS Studio:</strong></p>
+                <p>1. Add Source → Media Source</p>
+                <p>2. Check "Local File" and paste the URL</p>
+                <p><strong>Command Line (ffplay):</strong></p>
+                <p><code>ffplay [URL]</code></p>
+                <p><strong>Browser:</strong></p>
+                <p>Open the URL directly in your browser</p>
+            </div>
         </div>
+        
         <div class="video-container" id="videoContainer" style="display: none;">
             <video id="videoPlayer" autoplay muted>
                 <source src="/playlist.m3u8" type="video/mp4">
@@ -83,18 +106,15 @@ HTML_TEMPLATE = """
                         document.getElementById('videoContainer').style.display = 'block';
                         initializeHLS();
                         startTimer();
+                        loadStreamInfo();
                     } else {
                         document.getElementById('status').textContent = 'Error: ' + data.error;
-                        document.getElementById('debugText').textContent = data.debug_info || 'No debug info available';
-                        document.getElementById('debugInfo').style.display = 'block';
                         document.getElementById('startBtn').disabled = false;
                         document.getElementById('stopBtn').disabled = true;
                     }
                 })
                 .catch(error => {
                     document.getElementById('status').textContent = 'Error: ' + error.message;
-                    document.getElementById('debugText').textContent = 'Network error: ' + error.message;
-                    document.getElementById('debugInfo').style.display = 'block';
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('stopBtn').disabled = true;
                 });
@@ -111,23 +131,41 @@ HTML_TEMPLATE = """
                 .then(data => {
                     document.getElementById('status').textContent = 'Stream stopped';
                     document.getElementById('videoContainer').style.display = 'none';
+                    document.getElementById('streamUrlSection').style.display = 'none';
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('stopBtn').disabled = true;
                     stopTimer();
                 });
         }
         
-        function checkSystem() {
-            fetch('/debug_info')
+        function loadStreamInfo() {
+            fetch('/stream_info')
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('debugText').textContent = JSON.stringify(data, null, 2);
-                    document.getElementById('debugInfo').style.display = 'block';
+                    if (data.stream_active && data.playlist_exists) {
+                        document.getElementById('streamUrl').value = data.stream_urls.playlist_url;
+                        document.getElementById('streamUrlSection').style.display = 'block';
+                    }
                 })
                 .catch(error => {
-                    document.getElementById('debugText').textContent = 'Error fetching debug info: ' + error.message;
-                    document.getElementById('debugInfo').style.display = 'block';
+                    console.error('Error loading stream info:', error);
                 });
+        }
+        
+        function copyStreamUrl() {
+            const urlInput = document.getElementById('streamUrl');
+            urlInput.select();
+            urlInput.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            
+            const copyBtn = document.querySelector('.copy-btn');
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = 'Copied!';
+            copyBtn.style.background = '#28a745';
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.style.background = '#28a745';
+            }, 2000);
         }
         
         function initializeHLS() {
@@ -136,10 +174,10 @@ HTML_TEMPLATE = """
             
             if (Hls.isSupported()) {
                 hls = new Hls({
-                    debug: true,  // Enable debug mode
+                    debug: false,
                     enableWorker: true,
                     lowLatencyMode: true,
-                    backBufferLength: 90
+                    backBufferLength: 30  // Reduced buffer
                 });
                 hls.loadSource(videoSrc);
                 hls.attachMedia(video);
@@ -151,8 +189,6 @@ HTML_TEMPLATE = """
                 
                 hls.on(Hls.Events.ERROR, function(event, data) {
                     console.error('HLS error:', data);
-                    document.getElementById('debugText').textContent = 'HLS Error: ' + JSON.stringify(data, null, 2);
-                    document.getElementById('debugInfo').style.display = 'block';
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = videoSrc;
@@ -188,59 +224,17 @@ HTML_TEMPLATE = """
                 timerInterval = null;
             }
         }
+        
+        window.onload = function() {
+            startStream();
+        };
     </script>
 </body>
 </html>
 """
 
-def check_ffmpeg():
-    """Check if FFmpeg is available and get version info"""
-    try:
-        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            version_line = result.stdout.split('\n')[0]
-            return True, version_line
-        else:
-            return False, f"FFmpeg error: {result.stderr}"
-    except FileNotFoundError:
-        return False, "FFmpeg not found in PATH"
-    except subprocess.TimeoutExpired:
-        return False, "FFmpeg command timed out"
-    except Exception as e:
-        return False, f"Error checking FFmpeg: {e}"
-
-def check_system():
-    """Check system information"""
-    info = {
-        'python_version': sys.version,
-        'platform': sys.platform,
-        'current_directory': os.getcwd(),
-        'hls_output_dir': hls_output_dir,
-        'hls_output_exists': os.path.exists(hls_output_dir),
-        'hls_output_writable': os.access(hls_output_dir, os.W_OK) if os.path.exists(hls_output_dir) else False,
-        'playlist_file': playlist_file,
-        'playlist_exists': os.path.exists(playlist_file),
-        'ffmpeg_available': False,
-        'ffmpeg_version': 'Unknown'
-    }
-    
-    # Check FFmpeg
-    ffmpeg_ok, ffmpeg_info = check_ffmpeg()
-    info['ffmpeg_available'] = ffmpeg_ok
-    info['ffmpeg_version'] = ffmpeg_info
-    
-    # Check if we can create the HLS directory
-    try:
-        os.makedirs(hls_output_dir, exist_ok=True)
-        info['hls_directory_created'] = True
-    except Exception as e:
-        info['hls_directory_created'] = False
-        info['hls_directory_error'] = str(e)
-    
-    return info
-
 def start_live_stream():
-    """Start the live stream with FFmpeg generating HLS segments"""
+    """Start the live stream with minimal disk usage"""
     global ffmpeg_process, stream_active
     
     try:
@@ -256,24 +250,24 @@ def start_live_stream():
         if os.path.exists(playlist_file):
             os.remove(playlist_file)
         
-        # Simple FFmpeg command without fonts first
+        # Ultra-light FFmpeg command with minimal disk usage
         ffmpeg_cmd = [
             'ffmpeg',
             '-f', 'lavfi',
-            '-i', 'testsrc2=size=640x480:rate=30',
+            '-i', 'testsrc2=size=320x240:rate=15',  # Smaller resolution and lower framerate
             '-vf', 
-            'drawbox=x=50+50*cos(t*2*PI/5):y=50+50*sin(t*2*PI/5):w=100:h=100:color=red@0.8:t=fill,'
-            'drawtext=text=\'Server Uptime\':x=10:y=30:fontsize=24:color=white,'
-            'drawtext=text=\'%{pts\\:hms}\':x=10:y=60:fontsize=32:color=yellow,'
-            'drawtext=text=\'HLS Live Stream\':x=10:y=100:fontsize=20:color=cyan',
+            'drawbox=x=25+25*cos(t*2*PI/5):y=25+25*sin(t*2*PI/5):w=50:h=50:color=red@0.8:t=fill,'
+            'drawtext=text=\'Uptime\':x=5:y=15:fontsize=12:color=white,'
+            'drawtext=text=\'%{pts\\:hms}\':x=5:y=30:fontsize=16:color=yellow,'
+            'drawtext=text=\'Live\':x=5:y=45:fontsize=10:color=cyan',
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-crf', '23',
+            '-crf', '28',  # Higher CRF for smaller files
             '-pix_fmt', 'yuv420p',
             '-f', 'hls',
-            '-hls_time', '2',
-            '-hls_list_size', '5',
+            '-hls_time', '1',  # 1-second segments (smaller)
+            '-hls_list_size', '3',  # Only 3 segments (3 seconds buffer)
             '-hls_flags', 'delete_segments+independent_segments',
             '-hls_segment_filename', os.path.join(hls_output_dir, 'segment_%03d.ts'),
             playlist_file
@@ -337,17 +331,11 @@ def index():
     """Serve the main page"""
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/debug_info')
-def debug_info():
-    """Get detailed debug information"""
-    return jsonify(check_system())
-
 @app.route('/start_stream', methods=['POST'])
 def start_stream():
     """Start the live stream"""
     try:
         success, message = start_live_stream()
-        debug_info = check_system()
         
         if success:
             return jsonify({
@@ -359,14 +347,12 @@ def start_stream():
             return jsonify({
                 'success': False,
                 'error': message,
-                'debug_info': debug_info,
                 'timestamp': datetime.now().isoformat()
             }), 500
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e),
-            'debug_info': check_system(),
             'timestamp': datetime.now().isoformat()
         }), 500
 
@@ -436,6 +422,41 @@ def serve_hls_segment(filename):
         }
     )
 
+@app.route('/stream_info')
+def stream_info():
+    """Get stream URL and information"""
+    playlist_exists = os.path.exists(playlist_file) if stream_active else False
+    segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts"))) if stream_active else 0
+    
+    # Get the server's external IP or localhost
+    import socket
+    try:
+        # Try to get external IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        external_ip = s.getsockname()[0]
+        s.close()
+    except:
+        external_ip = "localhost"
+    
+    return jsonify({
+        'stream_active': stream_active,
+        'playlist_exists': playlist_exists,
+        'segment_count': segment_count,
+        'stream_urls': {
+            'playlist_url': f"http://{external_ip}:5000/playlist.m3u8",
+            'localhost_url': "http://localhost:5000/playlist.m3u8",
+            'direct_playlist': f"http://{external_ip}:5000/playlist.m3u8"
+        },
+        'instructions': {
+            'vlc': f"Open VLC → Media → Open Network Stream → Enter: http://{external_ip}:5000/playlist.m3u8",
+            'obs': f"Add Media Source → Enter URL: http://{external_ip}:5000/playlist.m3u8",
+            'ffplay': f"Run: ffplay http://{external_ip}:5000/playlist.m3u8",
+            'browser': f"Open: http://{external_ip}:5000/playlist.m3u8"
+        },
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
@@ -445,30 +466,31 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'ffmpeg_available': check_ffmpeg()[0],
+        'ffmpeg_available': check_ffmpeg(),
         'stream_active': stream_active,
         'hls_playlist_exists': playlist_exists,
         'hls_segment_count': segment_count,
-        'server_uptime': str(datetime.now() - server_start_time),
-        'debug_info': check_system()
+        'server_uptime': str(datetime.now() - server_start_time)
     })
+
+def check_ffmpeg():
+    """Check if FFmpeg is available"""
+    try:
+        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
+        return result.returncode == 0
+    except:
+        return False
 
 # Register signal handlers for graceful shutdown
 signal.signal(signal.SIGINT, lambda s, f: cleanup_on_exit())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_on_exit())
 
 if __name__ == '__main__':
-    print("Live Timer Stream Server (Debug Mode)")
-    print("=" * 45)
+    print("Live Timer Stream Server (Ultra Light)")
+    print("=" * 40)
     print(f"Server started at: {server_start_time}")
     print("Starting server on http://0.0.0.0:5000")
-    print("Debug mode enabled - check /debug_info for system status")
-    
-    # Print system info on startup
-    debug_info = check_system()
-    print("\nSystem Information:")
-    for key, value in debug_info.items():
-        print(f"  {key}: {value}")
+    print("Ultra light mode - minimal disk usage")
     
     try:
         # Start the Flask server

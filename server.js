@@ -486,19 +486,24 @@ function startLiveStream() {
             }
         });
         
-        // Wait a moment and check if FFmpeg started successfully
+        // Start animation loop immediately to feed data to FFmpeg
+        streamActive = true;
+        console.log(`FFmpeg started, PID: ${ffmpegProcess.pid}`);
+        animationFrameId = setInterval(animate, 1000 / 30); // 30fps
+        
+        // Check if FFmpeg is still running after a short delay
         setTimeout(() => {
-            if (ffmpegProcess && !ffmpegProcess.killed) {
-                streamActive = true;
-                console.log(`FFmpeg started successfully, PID: ${ffmpegProcess.pid}`);
-                
-                // Start animation loop
-                animationFrameId = setInterval(animate, 1000 / 30); // 30fps
-            } else {
-                console.error('FFmpeg failed to start');
+            if (ffmpegProcess && ffmpegProcess.killed) {
+                console.error('FFmpeg failed to start or exited early');
                 streamActive = false;
+                if (animationFrameId) {
+                    clearInterval(animationFrameId);
+                    animationFrameId = null;
+                }
+            } else {
+                console.log('FFmpeg running successfully');
             }
-        }, 3000);
+        }, 2000);
         
         return true;
         
@@ -580,9 +585,11 @@ app.post('/restart_stream', (req, res) => {
 });
 
 app.get('/playlist.m3u8', (req, res) => {
-    console.log(`Playlist request - stream_active: ${streamActive}, playlist exists: ${fs.existsSync(playlistFile)}`);
+    const playlistExists = fs.existsSync(playlistFile);
+    console.log(`Playlist request - stream_active: ${streamActive}, playlist exists: ${playlistExists}, ffmpeg running: ${ffmpegProcess && !ffmpegProcess.killed}`);
     
-    if (!streamActive || !fs.existsSync(playlistFile)) {
+    if (!streamActive || !playlistExists) {
+        console.log('Playlist not available - stream_active:', streamActive, 'playlist exists:', playlistExists);
         return res.status(404).json({ error: 'No active stream available' });
     }
     

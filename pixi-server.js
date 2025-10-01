@@ -151,30 +151,31 @@ function startFFmpeg() {
     const ffmpegArgs = [
         '-f', 'image2pipe',
         '-vcodec', 'png',
-        '-r', '30',
+        '-r', '15',
         '-i', 'pipe:0',
         '-f', 'lavfi',
-        '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+        '-i', 'anullsrc=channel_layout=stereo:sample_rate=22050',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
-        '-crf', '23',
-        '-maxrate', '2M',
-        '-bufsize', '2M',
-        '-g', '15',
-        '-keyint_min', '15',
+        '-crf', '28',
+        '-maxrate', '500k',
+        '-bufsize', '500k',
+        '-g', '5',
+        '-keyint_min', '5',
         '-sc_threshold', '0',
         '-profile:v', 'baseline',
         '-level', '3.0',
         '-pix_fmt', 'yuv420p',
+        '-s', '640x360',
         '-c:a', 'aac',
-        '-b:a', '64k',
-        '-ar', '48000',
-        '-ac', '2',
+        '-b:a', '32k',
+        '-ar', '22050',
+        '-ac', '1',
         '-f', 'hls',
-        '-hls_time', '1',
-        '-hls_list_size', '3',
-        '-hls_flags', 'delete_segments+independent_segments',
+        '-hls_time', '0.5',
+        '-hls_list_size', '2',
+        '-hls_flags', 'delete_segments+independent_segments+omit_endlist',
         '-hls_segment_type', 'mpegts',
         '-hls_segment_filename', '/app/hls/segment_%03d.ts',
         '-hls_start_number_source', 'datetime',
@@ -223,8 +224,8 @@ if (!fs.existsSync(hlsDir)) {
 // Start FFmpeg
 startFFmpeg();
 
-// Start animation loop
-setInterval(animate, 16); // ~60fps
+// Start animation loop at 15 FPS for ultra-low latency
+setInterval(animate, 1000 / 15); // 15fps for maximum real-time performance
 
 console.log('Canvas server started with FFmpeg streaming');
 console.log('Stream available at: http://localhost:5000/playlist.m3u8');

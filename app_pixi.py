@@ -232,9 +232,9 @@ HTML_TEMPLATE = """
                 hls = new Hls({
                     enableWorker: true,
                     lowLatencyMode: false,
-                    backBufferLength: 30,
-                    maxBufferLength: 60,
-                    maxMaxBufferLength: 120,
+                    backBufferLength: 60,
+                    maxBufferLength: 120,
+                    maxMaxBufferLength: 300,
                     liveSyncDurationCount: 3,
                     liveMaxLatencyDurationCount: 5,
                     liveDurationInfinity: true,
@@ -246,12 +246,15 @@ HTML_TEMPLATE = """
                     maxBufferHole: 0.1,
                     maxSeekHole: 2,
                     seekHoleNudgeDuration: 0.1,
-                    maxFragLookUpTolerance: 0.25,
                     liveSyncDuration: 1,
                     liveBackBufferLength: 0,
-                    fragLoadingTimeOut: 20000,
-                    manifestLoadingTimeOut: 10000,
-                    levelLoadingTimeOut: 10000
+                    fragLoadingTimeOut: 30000,
+                    manifestLoadingTimeOut: 15000,
+                    levelLoadingTimeOut: 15000,
+                    startLevel: -1,
+                    capLevelToPlayerSize: false,
+                    testBandwidth: true,
+                    debug: false
                 });
                 
                 hls.loadSource('/playlist.m3u8');

@@ -45,7 +45,7 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy Python application
-COPY app_optimized.py app.py
+COPY app_pixi.py app.py
 
 # Create HLS directory
 RUN mkdir -p /app/hls

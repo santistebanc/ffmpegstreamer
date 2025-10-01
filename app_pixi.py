@@ -496,7 +496,7 @@ HTML_TEMPLATE = """
 """
 
 def start_pixi_stream():
-    """Start the PixiJS streaming process"""
+    """Start the Canvas streaming process"""
     global pixi_process, stream_active
     
     try:
@@ -505,7 +505,7 @@ def start_pixi_stream():
             pixi_process.terminate()
             time.sleep(2)
         
-        # Start PixiJS server
+        # Start Canvas server
         pixi_process = subprocess.Popen(
             ['node', 'pixi-server.js'],
             stdout=subprocess.PIPE,
@@ -514,11 +514,11 @@ def start_pixi_stream():
         )
         
         stream_active = True
-        print("PixiJS streaming process started")
+        print("Canvas streaming process started")
         return True
         
     except Exception as e:
-        print(f"Error starting PixiJS stream: {e}")
+        print(f"Error starting Canvas stream: {e}")
         return False
 
 def stop_pixi_stream():
@@ -559,12 +559,17 @@ def health():
     uptime = datetime.now() - server_start_time
     uptime_str = str(uptime).split('.')[0]  # Remove microseconds
     
+    # Check if Canvas-generated HLS files exist
+    hls_playlist_exists = os.path.exists(playlist_file)
+    hls_segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts")))
+    canvas_stream_active = hls_playlist_exists and hls_segment_count > 0
+    
     return jsonify({
         'status': 'healthy',
-        'stream_active': stream_active,
-        'pixi_process_running': pixi_process and pixi_process.poll() is None if pixi_process else False,
-        'hls_playlist_exists': os.path.exists(playlist_file) if stream_active else False,
-        'hls_segment_count': len(glob.glob(os.path.join(hls_output_dir, "*.ts"))) if stream_active else 0,
+        'stream_active': canvas_stream_active,
+        'canvas_process_running': canvas_stream_active,
+        'hls_playlist_exists': hls_playlist_exists,
+        'hls_segment_count': hls_segment_count,
         'server_uptime': uptime_str,
         'timestamp': datetime.now().isoformat()
     })
@@ -577,12 +582,17 @@ def stream_info():
     uptime = datetime.now() - server_start_time
     uptime_str = str(uptime).split('.')[0]
     
+    # Check if Canvas-generated HLS files exist
+    hls_playlist_exists = os.path.exists(playlist_file)
+    hls_segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts")))
+    canvas_stream_active = hls_playlist_exists and hls_segment_count > 0
+    
     return jsonify({
-        'stream_active': stream_active,
-        'pixi_process_running': pixi_process and pixi_process.poll() is None if pixi_process else False,
+        'stream_active': canvas_stream_active,
+        'canvas_process_running': canvas_stream_active,
         'hls_playlist_url': '/playlist.m3u8',
         'server_uptime': uptime_str,
-        'technology': 'PixiJS + Node.js + FFmpeg + HLS',
+        'technology': 'Canvas + Node.js + FFmpeg + HLS',
         'resolution': '1920x1080',
         'frame_rate': '30 FPS',
         'quality': 'HD with hardware acceleration',
@@ -659,7 +669,12 @@ def restart_count():
 @app.route('/playlist.m3u8')
 def serve_playlist():
     """Serve the HLS playlist"""
-    if not stream_active or not os.path.exists(playlist_file):
+    # Check if Canvas-generated HLS files exist
+    hls_playlist_exists = os.path.exists(playlist_file)
+    hls_segment_count = len(glob.glob(os.path.join(hls_output_dir, "*.ts")))
+    canvas_stream_active = hls_playlist_exists and hls_segment_count > 0
+    
+    if not canvas_stream_active:
         return "Stream not available", 404
     
     response = send_file(playlist_file, mimetype='application/vnd.apple.mpegurl')
@@ -701,15 +716,8 @@ if __name__ == '__main__':
     import atexit
     atexit.register(cleanup_on_exit)
     
-    # Start PixiJS stream automatically
-    def start_stream_delayed():
-        time.sleep(2)
-        start_pixi_stream()
-    
-    threading.Thread(target=start_stream_delayed, daemon=True).start()
-    
-    print("Starting Flask app with PixiJS integration...")
-    print("PixiJS stream will start automatically")
+    print("Starting Flask app with Canvas integration...")
+    print("Canvas stream is already running via Docker CMD")
     print("Access the stream at: http://localhost:5000")
     
     app.run(host='0.0.0.0', port=5000, debug=False)

@@ -47,11 +47,11 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # Copy Python application
 COPY app_pixi.py app.py
 
-# Create HLS directory
-RUN mkdir -p /app/hls
+# Create HLS directory and temp directory for lock files
+RUN mkdir -p /app/hls /tmp
 
 # Create a non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app /tmp
 USER appuser
 
 # Expose the port Flask runs on

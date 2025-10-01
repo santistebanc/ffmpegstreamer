@@ -4,6 +4,55 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Process lock to ensure only one instance runs
+const LOCK_FILE = '/app/canvas-server.lock';
+const PID_FILE = '/app/canvas-server.pid';
+
+// Check if another instance is already running
+if (fs.existsSync(LOCK_FILE)) {
+    try {
+        const existingPid = fs.readFileSync(PID_FILE, 'utf8').trim();
+        // Check if the process is actually running
+        try {
+            process.kill(existingPid, 0); // Signal 0 just checks if process exists
+            console.log('Canvas server is already running (PID: ' + existingPid + '). Exiting...');
+            process.exit(1);
+        } catch (err) {
+            // Process doesn't exist, remove stale lock files
+            console.log('Removing stale lock files...');
+            if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
+            if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
+        }
+    } catch (err) {
+        // PID file doesn't exist or is invalid, remove lock file
+        if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
+    }
+}
+
+// Create lock file and write PID
+fs.writeFileSync(LOCK_FILE, 'locked');
+fs.writeFileSync(PID_FILE, process.pid.toString());
+
+// Cleanup on exit
+process.on('exit', () => {
+    if (fs.existsSync(LOCK_FILE)) {
+        fs.unlinkSync(LOCK_FILE);
+    }
+    if (fs.existsSync(PID_FILE)) {
+        fs.unlinkSync(PID_FILE);
+    }
+});
+
+process.on('SIGINT', () => {
+    console.log('Canvas server shutting down...');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('Canvas server shutting down...');
+    process.exit(0);
+});
+
 // Create a canvas for rendering
 const canvas = createCanvas(1920, 1080);
 const ctx = canvas.getContext('2d');
@@ -11,6 +60,22 @@ const ctx = canvas.getContext('2d');
 // Animation variables
 let time = 0;
 let startTime = Date.now();
+
+// Pick a random color at startup
+const colors = [
+    'rgba(255, 0, 0, 0.8)',    // Red
+    'rgba(0, 255, 0, 0.8)',    // Green
+    'rgba(0, 0, 255, 0.8)',    // Blue
+    'rgba(255, 255, 0, 0.8)',  // Yellow
+    'rgba(255, 0, 255, 0.8)',  // Magenta
+    'rgba(0, 255, 255, 0.8)',  // Cyan
+    'rgba(255, 165, 0, 0.8)',  // Orange
+    'rgba(128, 0, 128, 0.8)',  // Purple
+    'rgba(255, 192, 203, 0.8)', // Pink
+    'rgba(0, 128, 0, 0.8)'     // Dark Green
+];
+const randomColor = colors[Math.floor(Math.random() * colors.length)];
+console.log('Canvas server started with random color:', randomColor);
 
 // Animation loop
 function animate() {
@@ -20,12 +85,12 @@ function animate() {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, 1920, 1080);
     
-    // Draw animated square
+    // Draw animated square with random color
     const squareSize = 400;
     const centerX = 200 + 200 * Math.cos(time * 2 * Math.PI / 5);
     const centerY = 200 + 200 * Math.sin(time * 2 * Math.PI / 5);
     
-    ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+    ctx.fillStyle = randomColor;
     ctx.fillRect(centerX, centerY, squareSize, squareSize);
     
     // Draw text overlays
@@ -51,7 +116,7 @@ function animate() {
     
     ctx.fillStyle = '#00FF00';
     ctx.font = '28px Arial';
-    ctx.fillText('HD Quality with Canvas', 40, 280);
+    ctx.fillText('HD Quality with Canvas - Color: ' + randomColor, 40, 280);
     
     // Get canvas data and send to FFmpeg
     const imageData = canvas.toDataURL('image/png');
